@@ -30,6 +30,8 @@
 use crate::*;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
+use crate::binread::options::ReadOptionsExt;
+use crate::options::Options;
 
 /// A wrapper type for representing a layer of indirection within a file.
 ///
@@ -79,30 +81,28 @@ pub type FilePtr128<T> = FilePtr<u128, T>;
 impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Ptr, BR> {
     type Args = BR::Args;
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: Self::Args) -> BinResult<Self> {
+    fn read_options<R: Read + Seek>(reader: &mut R, options: &Options, _: Self::Args) -> BinResult<Self> {
         #[cfg(feature = "debug_template")]
         let options = &{
-            let mut options = options.clone();
+            //let mut options = options.clone();
 
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
             let type_name = &core::any::type_name::<Ptr>();
-            if let Some(name) = options.variable_name {
+            if let Some(name) = options.variable_name() {
                 binary_template::write_named(
-                    options.endian,
+                    options.endian(),
                     pos,
                     type_name,
                     &format!("ptr_to_{}", name)
                 );
             } else {
                 binary_template::write(
-                    options.endian,
+                    options.endian(),
                     pos,
                     type_name,
                 );
             }
-            options.dont_output_to_template = true;
-
-            options
+            options.insert(crate::binread::options::DontOutputTemplate)
         };
 
         Ok(FilePtr{
@@ -111,10 +111,10 @@ impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Pt
         })
     }
 
-    fn after_parse<R>(&mut self, reader: &mut R, ro: &ReadOptions, args: BR::Args)-> BinResult<()>
+    fn after_parse<R>(&mut self, reader: &mut R, ro: &Options, args: BR::Args)-> BinResult<()>
         where R: Read + Seek,
     {
-        let relative_to = ro.offset;
+        let relative_to = ro.offset();
         let before = reader.seek(SeekFrom::Current(0))?;
         reader.seek(SeekFrom::Start(relative_to))?;
         reader.seek(self.ptr.into_seek_from())?;
@@ -135,7 +135,7 @@ impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> FilePtr<Ptr, BR> {
     /// that reads a [`FilePtr`](FilePtr) then immediately dereferences it into an owned value
     pub fn parse<R: Read + Seek>(
         reader: &mut R,
-        options: &ReadOptions,
+        options: &Options,
         args: BR::Args
     ) -> BinResult<BR>
     {

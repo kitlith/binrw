@@ -2,6 +2,7 @@
 use binrw::{BinRead, BinResult, io::{Cursor, Read, Seek, SeekFrom}, FilePtr, NullString, ReadOptions};
 
 use binrw::BinReaderExt;
+use binrw::options::Options;
 
 #[derive(Debug)]
 struct BadDifferenceError(u16);
@@ -25,7 +26,7 @@ struct TestFile {
 #[derive(Debug)]
 struct NotBinWrite {}
 
-fn read_offsets<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, _: ())
+fn read_offsets<R: Read + Seek>(reader: &mut R, ro: &Options, _: ())
     -> BinResult<(u16, u16)>
 {
     Ok((

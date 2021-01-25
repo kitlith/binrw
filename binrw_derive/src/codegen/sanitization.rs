@@ -20,12 +20,17 @@ pub static CRATE_NAME: IdentStr = from_crate!();
 pub static TRAIT_NAME: IdentStr = from_trait!();
 
 pub static BIN_ERROR: IdentStr = from_crate!(Error);
-pub static OPTIONS: IdentStr = from_crate!(ReadOptions);
+//pub static OPTIONS: IdentStr = from_crate!(ReadOptions);
 pub static READ_TRAIT: IdentStr = from_crate!(io::Read);
 pub static SEEK_TRAIT: IdentStr = from_crate!(io::Seek);
 pub static SEEK_FROM: IdentStr = from_crate!(io::SeekFrom);
 pub static BIN_RESULT: IdentStr = from_crate!(BinResult);
 pub static ENDIAN_ENUM: IdentStr = from_crate!(Endian);
+
+pub static OPTIONS: IdentStr = from_crate!(options::Options);
+pub static COUNT_OPTION: IdentStr = from_crate!(binread::options::VecCount);
+pub static FILE_OFFSET_OPTION: IdentStr = from_crate!(binread::options::FileOffset);
+pub static VARIABLE_NAME_OPTION: IdentStr = from_crate!(binread::options::VariableName);
 
 pub static READ_METHOD: IdentStr = from_trait!(read_options);
 pub static AFTER_PARSE: IdentStr = from_trait!(after_parse);

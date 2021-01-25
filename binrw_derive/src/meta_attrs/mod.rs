@@ -11,7 +11,7 @@ use crate::compiler_error::SpanError;
 use syn::{Ident, Lit, NestedMeta, Path, Type, Field, Meta, Expr, spanned::Spanned};
 use quote::ToTokens;
 use std::str::FromStr;
-use syn::export::TokenStream2;
+use proc_macro2::TokenStream as TokenStream2;
 
 #[derive(Debug, Clone)]
 pub struct Assert(pub TokenStream, pub Option<TokenStream>);

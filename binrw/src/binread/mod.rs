@@ -3,9 +3,11 @@ use crate::io::{Read, Seek};
 use crate::{BinResult, Endian};
 
 mod impls;
-mod options;
+pub mod options;
 
 pub use options::ReadOptions;
+use options::ReadOptionsExt;
+use crate::options::Options;
 
 /// A `BinRead` trait allows reading a structure from anything that implements [`io::Read`](io::Read) and [`io::Seek`](io::Seek)
 /// BinRead is implemented on the type to be read out of the given reader
@@ -25,18 +27,18 @@ pub trait BinRead: Sized {
             None => panic!("Must pass args, no args_default implemented")
         };
 
-        Self::read_options(reader, &ReadOptions::default(), args)
+        Self::read_options(reader, &Options::new(), args)
     }
 
     /// Read the type from the reader using the specified arguments
     fn read_args<R: Read + Seek>(reader: &mut R, args: Self::Args) -> BinResult<Self> {
-        Self::read_options(reader, &ReadOptions::default(), args)
+        Self::read_options(reader, &Options::new(), args)
     }
 
     /// Read the type from the reader
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args) -> BinResult<Self>;
+    fn read_options<R: Read + Seek>(reader: &mut R, options: &Options, args: Self::Args) -> BinResult<Self>;
 
-    fn after_parse<R: Read + Seek>(&mut self, _: &mut R, _: &ReadOptions, _: Self::Args) -> BinResult<()> {
+    fn after_parse<R: Read + Seek>(&mut self, _: &mut R, _: &Options, _: Self::Args) -> BinResult<()> {
         Ok(())
     }
 
@@ -80,9 +82,8 @@ pub trait BinReaderExt: Read + Seek + Sized {
             None => panic!("Must pass args, no args_default implemented")
         };
 
-        let options = ReadOptions{
-            endian, ..Default::default()
-        };
+        let mut options = Options::new();
+        options.insert_mut(endian);
 
         let mut res = T::read_options(self, &options, args)?;
         res.after_parse(self, &options, args)?;

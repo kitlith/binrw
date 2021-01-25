@@ -5,6 +5,8 @@ use core::fmt;
 use crate::io::{Read, Seek};
 use crate::{BinRead, ReadOptions, BinResult};
 use crate::alloc::vec::Vec;
+use crate::options::Options;
+use crate::binread::options::ReadOptionsExt;
 
 /// A type for seperated data. Since parsing for this type is ambiguous, you must manually specify
 /// a parser using the `parse_with` attribute.
@@ -55,8 +57,8 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     /// # assert_eq!(*y.x, vec![3, 2, 1]);
     /// # assert_eq!(y.x.seperators, vec![0, 1]);
     /// ```
-    pub fn separated<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: C) -> BinResult<Self> {
-        let count = match options.count {
+    pub fn separated<R: Read + Seek>(reader: &mut R, options: &Options, args: C) -> BinResult<Self> {
+        let count = match options.count() {
             Some(x) => x,
             None => panic!("Missing count for Punctuated"),
         };
@@ -77,8 +79,8 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     /// A parser for values seperated by another value, with trailing punctuation.
     ///
     /// Requires a specified count.
-    pub fn separated_trailing<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: C) -> BinResult<Self> {
-        let count = match options.count {
+    pub fn separated_trailing<R: Read + Seek>(reader: &mut R, options: &Options, args: C) -> BinResult<Self> {
+        let count = match options.count() {
             Some(x) => x,
             None => panic!("Missing count for Punctuated"),
         };

@@ -535,34 +535,34 @@ fn get_passed_args(field_attrs: &[FieldLevelAttrs]) -> Vec<TokenStream> {
         .collect()
 }
 
-const VARIABLE_NAME: IdentStr = IdentStr("variable_name");
-const ENDIAN: IdentStr = IdentStr("endian");
-const COUNT: IdentStr = IdentStr("count");
-const OFFSET: IdentStr = IdentStr("offset");
+// const VARIABLE_NAME: IdentStr = IdentStr("variable_name");
+// const ENDIAN: IdentStr = IdentStr("endian");
+// const COUNT: IdentStr = IdentStr("count");
+// const OFFSET: IdentStr = IdentStr("offset");
 
 fn get_name_option_pairs_ident_expr(field_attrs: &FieldLevelAttrs, ident: &Ident)
-    -> impl Iterator<Item = (IdentStr<'static>, TokenStream)>
+    -> impl Iterator<Item = TokenStream>
 {
     let endian = if let Some(condition) = &field_attrs.is_big {
-        Some((ENDIAN, quote!{
+        Some(quote!{
             if (#condition) {
                 #ENDIAN_ENUM::Big
             } else {
                 #ENDIAN_ENUM::Little
             }
-        }))
+        })
     } else if let Some(condition) = &field_attrs.is_little {
-        Some((ENDIAN, quote!{
+        Some(quote!{
             if (#condition) {
                 #ENDIAN_ENUM::Little
             } else {
                 #ENDIAN_ENUM::Big
             }
-        }))
+        })
     } else if *field_attrs.big {
-        Some((ENDIAN, quote!{ #ENDIAN_ENUM::Big }))
+        Some(quote!{ #ENDIAN_ENUM::Big })
     } else if *field_attrs.little {
-        Some((ENDIAN, quote!{ #ENDIAN_ENUM::Little }))
+        Some(quote!{ #ENDIAN_ENUM::Little })
     } else {
         None
     };
@@ -570,16 +570,19 @@ fn get_name_option_pairs_ident_expr(field_attrs: &FieldLevelAttrs, ident: &Ident
     let offset =
         field_attrs.offset
             .as_ref()
-            .map(|offset| (OFFSET, closure_wrap(offset)));
+            .map(|offset| {
+                let offset = closure_wrap(offset);
+                quote! { #FILE_OFFSET_OPTION(#offset) }
+            });
 
     let variable_name = if cfg!(feature = "debug_template") {
         let name = ident.to_string();
-        Some((VARIABLE_NAME, quote!{ Some(#name) }))
+        Some(quote!{ #VARIABLE_NAME_OPTION(#name) })
     } else {
         None
     };
 
-    let count = field_attrs.count.as_ref().map(|count| (COUNT, quote!{ Some((#count) as usize) }));
+    let count = field_attrs.count.as_ref().map(|count| quote!{ #COUNT_OPTION((#count) as usize) });
 
     count.into_iter()
         .chain(endian)
@@ -587,11 +590,11 @@ fn get_name_option_pairs_ident_expr(field_attrs: &FieldLevelAttrs, ident: &Ident
         .chain(offset)
 }
 
-fn get_modified_options<'a, I: IntoIterator<Item = (IdentStr<'a>, TokenStream)>>(option_pairs: I)
+fn get_modified_options<'a, I: IntoIterator<Item = TokenStream>>(options: I)
         -> TokenStream
 {
-    let (ident, expr): (Vec<_>, Vec<_>) = option_pairs.into_iter().unzip();
-    if ident.is_empty() {
+    let expr: Vec<_> = options.into_iter().collect();
+    if expr.is_empty() {
         quote!{
             #OPT
         }
@@ -601,7 +604,7 @@ fn get_modified_options<'a, I: IntoIterator<Item = (IdentStr<'a>, TokenStream)>>
                 let mut temp = #OPT.clone();
                 
                 #(
-                    temp.#ident = #expr;
+                    temp.insert_mut(#expr);
                 )*
                 
                 temp
@@ -620,9 +623,9 @@ fn get_new_options(idents: &[Ident], field_attrs: &[FieldLevelAttrs]) -> Vec<Tok
 
 fn get_top_level_binread_options(tla: &TopLevelAttrs) -> TokenStream {
     let endian = if *tla.big {
-        Some((ENDIAN, quote!{ #ENDIAN_ENUM::Big }))
+        Some(quote!{ #ENDIAN_ENUM::Big })
     } else if *tla.little {
-        Some((ENDIAN, quote!{ #ENDIAN_ENUM::Little }))
+        Some(quote!{ #ENDIAN_ENUM::Little })
     } else {
         None
     };

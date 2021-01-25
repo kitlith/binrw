@@ -128,7 +128,7 @@ use alloc::{
     string::String,
 };
 
-mod binread;
+pub mod binread;
 pub mod io;
 pub mod error;
 pub mod endian;
@@ -136,6 +136,7 @@ pub mod helpers;
 pub mod attribute;
 #[doc(hidden)] pub mod strings;
 #[doc(hidden)] pub mod pos_value;
+pub mod options;
 
 #[cfg(feature = "std")]
 #[cfg(feature = "debug_template")]

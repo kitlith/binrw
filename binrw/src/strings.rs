@@ -6,7 +6,7 @@ use core::num::{NonZeroU8, NonZeroU16};
 impl BinRead for Vec<NonZeroU8> {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, _: &ReadOptions, _: Self::Args) -> BinResult<Self>
+    fn read_options<R: Read + Seek>(reader: &mut R, _: &Options, _: Self::Args) -> BinResult<Self>
     {
         reader
             .bytes()
@@ -79,7 +79,7 @@ impl Into<Vec<u8>> for NullString {
 impl BinRead for Vec<NonZeroU16> {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: Self::Args)
+    fn read_options<R: Read + Seek>(reader: &mut R, options: &Options, _: Self::Args)
         -> BinResult<Self>
     {
         let mut values = vec![];
@@ -97,7 +97,7 @@ impl BinRead for Vec<NonZeroU16> {
 impl BinRead for NullWideString {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args)
+    fn read_options<R: Read + Seek>(reader: &mut R, options: &Options, args: Self::Args)
         -> BinResult<Self>
     {
         #[cfg(feature = "debug_template")]
@@ -106,7 +106,7 @@ impl BinRead for NullWideString {
         #[cfg(feature = "debug_template")] {
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
 
-            if !options.dont_output_to_template {
+            if !options.dont_output_to_template() {
                 binary_template::write_named(
                     options.endian,
                     pos,
@@ -117,7 +117,7 @@ impl BinRead for NullWideString {
                 );
             
             }
-            options.dont_output_to_template = true;
+            options.insert_mut(crate::binread::options::DontOutputTemplate);
         }
         <Vec<NonZeroU16>>::read_options(reader, &options, args)
             .map(|chars| chars.into())
@@ -127,18 +127,18 @@ impl BinRead for NullWideString {
 impl BinRead for NullString {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args)
+    fn read_options<R: Read + Seek>(reader: &mut R, options: &Options, args: Self::Args)
         -> BinResult<Self>
     {
         #[cfg(feature = "debug_template")] {
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
 
-            if !options.dont_output_to_template {
+            if !options.dont_output_to_template() {
                 binary_template::write_named(
-                    options.endian,
+                    options.endian(),
                     pos,
                     "string",
-                    &options.variable_name
+                    &options.variable_name()
                             .map(ToString::to_string)
                             .unwrap_or_else(|| binary_template::get_next_var_name())
                 );
@@ -150,6 +150,8 @@ impl BinRead for NullString {
 }
 
 use core::fmt;
+use crate::options::Options;
+use crate::binread::options::ReadOptionsExt;
 
 impl fmt::Debug for NullString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

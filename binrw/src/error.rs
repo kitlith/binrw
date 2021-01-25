@@ -44,6 +44,7 @@ impl From<io::Error> for Error {
 impl std::error::Error for Error {}
 
 use core::fmt;
+use crate::options::Options;
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -70,16 +71,14 @@ impl fmt::Display for Error {
 }
 
 /// Read a value then check if it is the expected value
-pub fn magic<R, B>(reader: &mut R, expected: B, options: &ReadOptions) -> BinResult<()>
+pub fn magic<R, B>(reader: &mut R, expected: B, options: &Options) -> BinResult<()>
     where B: BinRead<Args=()> + PartialEq + 'static,
           R: io::Read + io::Seek
 {
     let pos = reader.seek(SeekFrom::Current(0))?;
     #[cfg(feature = "debug_template")]
-    let mut options = options.clone();
-    #[cfg(feature = "debug_template")] {
-        options.variable_name = Some("magic");
-    }
+    let mut options = options.insert(binread::options::VariableName("magic"));
+
     let val = B::read_options(reader, &options, ())?;
     if val == expected {
         Ok(())
@@ -144,7 +143,7 @@ pub fn assert<R, E, A>(reader: &mut R, test: bool, message: &str, error: Option<
 /// A no-op replacement for [`BinRead::read_options`](BinRead::read_options) that returns the unit type
 ///
 /// **Intended for internal use only**
-pub fn nop3<T1, R: Read + Seek>(_: &mut R, _: &ReadOptions, _: T1) -> BinResult<()> {
+pub fn nop3<T1, R: Read + Seek>(_: &mut R, _: &Options, _: T1) -> BinResult<()> {
     Ok(())
 }
 
@@ -153,7 +152,7 @@ pub fn nop3<T1, R: Read + Seek>(_: &mut R, _: &ReadOptions, _: T1) -> BinResult<
 /// default value for the given type. Internally used for the `default` attribute.
 ///
 /// **Intended for internal use only**
-pub fn nop3_default<T1, R: Read + Seek, D: Default>(_: &mut R, _: &ReadOptions, _: T1) -> BinResult<D> {
+pub fn nop3_default<T1, R: Read + Seek, D: Default>(_: &mut R, _: &Options, _: T1) -> BinResult<D> {
     Ok(D::default())
 }
 
@@ -161,7 +160,7 @@ pub fn nop3_default<T1, R: Read + Seek, D: Default>(_: &mut R, _: &ReadOptions, 
 /// A no-op replacement for [`BinRead::after_parse`](BinRead::after_parse)
 ///
 /// **Intended for internal use only**
-pub fn nop5<T1, T2, R: Read + Seek>(_: &mut T1, _: &mut R, _: &ReadOptions, _: T2) -> BinResult<()> {
+pub fn nop5<T1, T2, R: Read + Seek>(_: &mut T1, _: &mut R, _: &Options, _: T2) -> BinResult<()> {
     Ok(())
 }
 
@@ -173,7 +172,7 @@ pub fn nop5<T1, T2, R: Read + Seek>(_: &mut T1, _: &mut R, _: &ReadOptions, _: T
 pub fn try_after_parse<Reader, ValueType, ArgType>(
     item: &mut Option<ValueType>,
     reader: &mut Reader,
-    ro: &ReadOptions,
+    ro: &Options,
     args: ArgType,
 ) -> BinResult<()>
     where Reader: Read + Seek,
@@ -199,14 +198,14 @@ pub fn identity_after_parse<PostprocessFn, Reader, ValueType, ArgType>(
     after_parse_fn: PostprocessFn,
     mut item: ValueType,
     reader: &mut Reader,
-    ro: &ReadOptions,
+    ro: &Options,
     args: ArgType,
 ) -> BinResult<ValueType>
     where Reader: Read + Seek,
           PostprocessFn: Fn(
               &mut ValueType,
               &mut Reader,
-              &ReadOptions,
+              &Options,
               ArgType,
           ) -> BinResult<()>,
 {
@@ -221,7 +220,7 @@ pub fn try_conversion<T>(result: BinResult<T>) -> BinResult<Option<T>> {
 
 pub fn read_options_then_after_parse<Args, T, R>(
     reader: &mut R,
-    ro: &ReadOptions,
+    ro: &Options,
     args: T::Args,
 ) -> BinResult<T>
     where Args: Copy + 'static,

@@ -6,6 +6,8 @@ pub use file_ptr::*;
 
 mod punctuated;
 pub use punctuated::*;
+use crate::options::Options;
+use crate::binread::options::ReadOptionsExt;
 
 /// A helper for more efficiently mass-reading bytes
 ///
@@ -23,8 +25,8 @@ pub use punctuated::*;
 /// # let x: BunchaBytes = x.read_be().unwrap();
 /// # assert_eq!(x.data, &[0, 1, 2, 3, 4]);
 /// ```
-pub fn read_bytes<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: ()) -> BinResult<Vec<u8>> {
-    let count = match options.count {
+pub fn read_bytes<R: Read + Seek>(reader: &mut R, options: &Options, _: ()) -> BinResult<Vec<u8>> {
+    let count = match options.count() {
         Some(x) => x,
         None => panic!("Missing count for read_bytes")
     };
