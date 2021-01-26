@@ -3,7 +3,7 @@
 
 use core::fmt;
 use crate::io::{Read, Seek};
-use crate::{BinRead, ReadOptions, BinResult};
+use crate::{BinRead, ReadOptions, ReadOptionsExt, BinResult};
 use crate::alloc::vec::Vec;
 
 /// A type for seperated data. Since parsing for this type is ambiguous, you must manually specify
@@ -56,7 +56,7 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     /// # assert_eq!(y.x.seperators, vec![0, 1]);
     /// ```
     pub fn separated<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: C) -> BinResult<Self> {
-        let count = match options.count {
+        let count = match options.count() {
             Some(x) => x,
             None => panic!("Missing count for Punctuated"),
         };
@@ -78,7 +78,7 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     ///
     /// Requires a specified count.
     pub fn separated_trailing<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: C) -> BinResult<Self> {
-        let count = match options.count {
+        let count = match options.count() {
             Some(x) => x,
             None => panic!("Missing count for Punctuated"),
         };

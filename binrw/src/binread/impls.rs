@@ -32,7 +32,7 @@ macro_rules! binread_impl {
                     }
                     
                     reader.read_exact(&mut val)?;
-                    Ok(match options.endian {
+                    Ok(match options.endian() {
                         Endian::Big => {
                             <$type_name>::from_be_bytes(val)
                         }
@@ -71,10 +71,11 @@ impl<C: Copy + 'static, B: BinRead<Args = C>> BinRead for Vec<B> {
 
     fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args) -> BinResult<Self> {
         let mut options = options.clone();
-        let count = match options.count.take() {
+        let count = match options.count() {
             Some(x) => x,
             None => panic!("Missing count for Vec"),
         };
+        options.insert(options::VecCount(None));
 
         #[cfg(feature = "debug_template")]
         {

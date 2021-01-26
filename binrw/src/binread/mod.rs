@@ -1,11 +1,10 @@
 use core::any::{Any, TypeId};
-use crate::io::{Read, Seek};
+
 use crate::{BinResult, Endian};
+use crate::io::{Read, Seek};
+use crate::options::{self, ReadOptions, ReadOptionsExt, TypeList};
 
 mod impls;
-mod options;
-
-pub use options::ReadOptions;
 
 /// A `BinRead` trait allows reading a structure from anything that implements [`io::Read`](io::Read) and [`io::Seek`](io::Seek)
 /// BinRead is implemented on the type to be read out of the given reader
@@ -80,9 +79,8 @@ pub trait BinReaderExt: Read + Seek + Sized {
             None => panic!("Must pass args, no args_default implemented")
         };
 
-        let options = ReadOptions{
-            endian, ..Default::default()
-        };
+        let mut options = ReadOptions::default();
+        options.insert(endian);
 
         let mut res = T::read_options(self, &options, args)?;
         res.after_parse(self, &options, args)?;

@@ -3,7 +3,7 @@
 use crate::alloc::string::String;
 
 /// An enum to represent what endianness to read as
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endian {
     Big,
     Little,

@@ -114,7 +114,7 @@ impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Pt
     fn after_parse<R>(&mut self, reader: &mut R, ro: &ReadOptions, args: BR::Args)-> BinResult<()>
         where R: Read + Seek,
     {
-        let relative_to = ro.offset;
+        let relative_to = ro.offset();
         let before = reader.seek(SeekFrom::Current(0))?;
         reader.seek(SeekFrom::Start(relative_to))?;
         reader.seek(self.ptr.into_seek_from())?;

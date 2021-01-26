@@ -1,4 +1,4 @@
-use crate::{BinResult, ReadOptions, io::{Read, Seek}};
+use crate::{BinResult, ReadOptions, ReadOptionsExt, io::{Read, Seek}};
 use crate::alloc::{vec::Vec, vec};
 
 mod file_ptr;
@@ -24,7 +24,7 @@ pub use punctuated::*;
 /// # assert_eq!(x.data, &[0, 1, 2, 3, 4]);
 /// ```
 pub fn read_bytes<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: ()) -> BinResult<Vec<u8>> {
-    let count = match options.count {
+    let count = match options.count() {
         Some(x) => x,
         None => panic!("Missing count for read_bytes")
     };

@@ -115,18 +115,50 @@
 //! either accept a specific set of arguments or be generic over the given arguments.
 #![cfg_attr(not(feature="std"), no_std)]
 
-#[cfg(feature = "std")]
-use std as alloc;
-
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-
 #[cfg(not(feature = "std"))]
 use alloc::{
     boxed::Box,
-    vec::Vec,
     string::String,
+    vec::Vec,
 };
+#[cfg(feature = "std")]
+use std as alloc;
+
+#[doc(inline)]
+pub use {
+    binread::{
+        BinRead,
+        BinReaderExt
+    },
+    endian::Endian,
+    error::Error,
+    helpers::{
+        FilePtr,
+        FilePtr128,
+        FilePtr16,
+        FilePtr32,
+        FilePtr64,
+        FilePtr8,
+    },
+    pos_value::PosValue,
+    strings::{
+        NullString,
+        NullWideString
+    },
+    options::{
+        ReadOptions,
+        ReadOptionsExt,
+        TypeList
+    }
+};
+/// Derive macro for BinRead. [Usage here](BinRead).
+pub use binrw_derive::BinRead;
+/// Equivelant to `derive(BinRead)` but allows for temporary variables.
+pub use binrw_derive::derive_binread;
+use io::{Read, Seek, SeekFrom};
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
 
 mod binread;
 pub mod io;
@@ -140,38 +172,7 @@ pub mod attribute;
 #[cfg(feature = "std")]
 #[cfg(feature = "debug_template")]
 pub mod binary_template;
-
-#[doc(inline)]
-pub use {
-    error::Error,
-    endian::Endian,
-    pos_value::PosValue,
-    helpers::{
-        FilePtr,
-        FilePtr8,
-        FilePtr16,
-        FilePtr32,
-        FilePtr64,
-        FilePtr128,
-    },
-    binread::{
-        BinRead,
-        BinReaderExt,
-        ReadOptions,
-    },
-    strings::{
-        NullString,
-        NullWideString
-    }
-};
-
-use io::{Read, Seek, SeekFrom};
-
-/// Derive macro for BinRead. [Usage here](BinRead).
-pub use binrw_derive::BinRead;
-
-/// Equivelant to `derive(BinRead)` but allows for temporary variables.
-pub use binrw_derive::derive_binread;
+pub mod options;
 
 /// A Result for any binread function that can return an error
 pub type BinResult<T> = core::result::Result<T, Error>;
