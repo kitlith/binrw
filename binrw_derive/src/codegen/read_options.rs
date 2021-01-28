@@ -11,9 +11,9 @@ use crate::{
     compiler_error::SpanError,
     CompileError
 };
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, Span};
 use quote::{quote, format_ident, ToTokens};
-use syn::{Ident, DeriveInput, Type, DataStruct, DataEnum, Expr, Field, Fields, Variant, punctuated::Punctuated, token::Comma};
+use syn::{Ident, DeriveInput, Type, DataStruct, DataEnum, Expr, Field, Fields, Variant, punctuated::Punctuated, token::Comma, spanned::Spanned};
 
 pub fn generate(input: &DeriveInput, tla: &TopLevelAttrs) -> Result<TokenStream, CompileError> {
     if let Some(map) = &tla.map {
@@ -209,10 +209,6 @@ fn merge_tlas(top_level: &TopLevelAttrs, enum_level: TopLevelAttrs) -> Result<To
     let mut out = top_level.clone();
 
     let variant_level = enum_level.finalize()?;
-    if *variant_level.big || *variant_level.little {
-        out.big = variant_level.big;
-        out.little = variant_level.little;
-    }
 
     if *variant_level.return_all_errors || *variant_level.return_unexpected_error {
         SpanError::err(
@@ -233,6 +229,7 @@ fn merge_tlas(top_level: &TopLevelAttrs, enum_level: TopLevelAttrs) -> Result<To
 
     out.pre_assert.extend_from_slice(&variant_level.pre_assert);
     out.assert.extend_from_slice(&variant_level.assert);
+    out.state.extend_from_slice(&variant_level.state);
 
     Ok(out)
 }
@@ -536,48 +533,53 @@ fn get_passed_args(field_attrs: &[FieldLevelAttrs]) -> Vec<TokenStream> {
 }
 
 fn get_option_value_expr(field_attrs: &FieldLevelAttrs, ident: &Ident)
-                         -> impl Iterator<Item = TokenStream>
+                         -> impl Iterator<Item = (Type, TokenStream, Span)>
 {
+    let endian_ty: Type = syn::parse_quote! { #ENDIAN_ENUM };
     let endian = if let Some(condition) = &field_attrs.is_big {
-        Some(quote!{
+        Some((endian_ty, quote!{
             if (#condition) {
                 #ENDIAN_ENUM::Big
             } else {
                 #ENDIAN_ENUM::Little
             }
-        })
+        }, condition.span()))
     } else if let Some(condition) = &field_attrs.is_little {
-        Some(quote!{
+        Some((endian_ty, quote!{
             if (#condition) {
                 #ENDIAN_ENUM::Little
             } else {
                 #ENDIAN_ENUM::Big
             }
-        })
+        }, condition.span()))
     } else if *field_attrs.big {
-        Some(quote!{ #ENDIAN_ENUM::Big })
+        Some((endian_ty, quote!{ #ENDIAN_ENUM::Big }, field_attrs.big.span()))
     } else if *field_attrs.little {
-        Some(quote!{ #ENDIAN_ENUM::Little })
+        Some((endian_ty, quote!{ #ENDIAN_ENUM::Little }, field_attrs.little.span()))
     } else {
         None
     };
-    
+
+    let offset_ty: Type = syn::parse_quote! { #OFFSET_OPTION };
     let offset =
         field_attrs.offset
             .as_ref()
             .map(|offset| {
                 let offset = closure_wrap(offset);
-                quote! { #OFFSET_OPTION(#offset) }
+                (offset_ty.clone(), quote! { #OFFSET_OPTION(#offset) }, offset.span())
             });
 
+    let var_name_ty: Type = syn::parse_quote! { #VARIABLE_NAME_OPTION };
     let variable_name = if cfg!(feature = "debug_template") {
         let name = ident.to_string();
-        Some(quote!{ #VARIABLE_NAME_OPTION(Some(#name)) })
+        Some((var_name_ty, quote!{ #VARIABLE_NAME_OPTION(Some(#name)) }, Span::call_site()))
     } else {
         None
     };
 
-    let count = field_attrs.count.as_ref().map(|count| quote!{ #COUNT_OPTION(Some((#count) as usize)) });
+    let count_ty: Type = syn::parse_quote! { #COUNT_OPTION };
+    let count = field_attrs.count.as_ref()
+        .map(|count| (count_ty, quote!{ #COUNT_OPTION(Some((#count) as usize)) }, count.span()));
 
     count.into_iter()
         .chain(endian)
@@ -585,7 +587,7 @@ fn get_option_value_expr(field_attrs: &FieldLevelAttrs, ident: &Ident)
         .chain(offset)
 }
 
-fn get_modified_options<'a, I: IntoIterator<Item = TokenStream>>(options: I)
+fn get_modified_options<'a, I: IntoIterator<Item = (Type, TokenStream, Span)>>(options: I)
         -> TokenStream
 {
     let expr: Vec<_> = options.into_iter().collect();
@@ -595,13 +597,26 @@ fn get_modified_options<'a, I: IntoIterator<Item = TokenStream>>(options: I)
         }
     } else {
         let type_list_trait = TYPE_LIST_TRAIT;
+        let inserts = expr.iter()
+            .map(|(ty, expr, _)| quote!{
+                #type_list_trait::insert(&mut temp, ::core::convert::Into::<#ty>::into(#expr));
+            });
+
+        // generate n choose 2 guard expressions, aka n(n-1)/2 or O(n^2)
+        let guards = expr.iter()
+            .enumerate()
+            .flat_map(|(idx, (ty_a, _, span_a))|
+                expr[idx+1..].iter()
+                    .map(move |(ty_b, _, span_b)| {
+                        require_types_not_equal(ty_a, ty_b, span_a.join(*span_b).unwrap_or(*span_b))
+                    })
+            );
         quote!{
             &{
                 let mut temp = #OPT.clone();
-                
-                #(
-                    #type_list_trait::insert(&mut temp, #expr);
-                )*
+
+                #(#guards)*
+                #(#inserts)*
                 
                 temp
             }
@@ -618,15 +633,7 @@ fn get_new_options(idents: &[Ident], field_attrs: &[FieldLevelAttrs]) -> Vec<Tok
 }
 
 fn get_top_level_binread_options(tla: &TopLevelAttrs) -> TokenStream {
-    let endian = if *tla.big {
-        Some(quote!{ #ENDIAN_ENUM::Big })
-    } else if *tla.little {
-        Some(quote!{ #ENDIAN_ENUM::Little })
-    } else {
-        None
-    };
-
-    get_modified_options(endian.into_iter())
+    get_modified_options(tla.state.iter().cloned())
 }
 
 fn get_magic_pre_assertion(tla: &TopLevelAttrs) -> TokenStream {
@@ -1006,4 +1013,10 @@ fn get_possible_try_conversion(field_attrs: &[FieldLevelAttrs]) -> Vec<TokenStre
             }
         })
         .collect()
+}
+
+fn require_types_not_equal(a: &Type, b: &Type, span: Span) -> TokenStream {
+    // for some reason interpolating the name of the macro in like this breaks displaying the span in the error.
+    //quote::quote_spanned!{span=> #ERROR_TYPE_EQ_HELPER!(#a, #b); }
+    quote::quote_spanned!{span=> ::binrw::require_types_not_equal!(#a, #b); }
 }

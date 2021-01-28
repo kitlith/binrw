@@ -17,6 +17,7 @@ kws!{
     magic,      // magic = [lit]
     assert,     // assert(expr)
     pre_assert,     // pre_assert(expr)
+    state,
 
     // top-level
     import,     // import(expr, ..)
@@ -42,6 +43,7 @@ kws!{
     offset_after,     // offset(expr)
     /*if,*/     // if(expr)
     temp,
+    set_state,
     
     pad_before,   // pad_before(expr)
     pad_after,    // pad_after(expr)

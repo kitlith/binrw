@@ -168,6 +168,8 @@ pub mod helpers;
 pub mod attribute;
 #[doc(hidden)] pub mod strings;
 #[doc(hidden)] pub mod pos_value;
+// collection of types and traits used by binread_derive for a particular kind of compiler error
+#[doc(hidden)] pub mod proc_macro_helper;
 
 #[cfg(feature = "std")]
 #[cfg(feature = "debug_template")]

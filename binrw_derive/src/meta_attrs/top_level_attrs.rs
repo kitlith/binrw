@@ -5,8 +5,8 @@ use syn::parse::Parse;
 use proc_macro2::Span;
 use crate::CompileError;
 use quote::ToTokens;
-use super::parser::ImportArg;
-use crate::meta_attrs::parser::ImportArgTuple;
+use super::parser::{ImportArg, ImportArgTuple, TypeState};
+use crate::codegen::sanitization::ENDIAN_ENUM;
 
 #[derive(Debug, Clone)]
 pub struct TopLevelAttrs {
@@ -20,9 +20,8 @@ pub struct TopLevelAttrs {
     // ======================
     //  All-level attributes
     // ======================
-    // endian
-    pub little: SpannedValue<bool>,
-    pub big: SpannedValue<bool>,
+    // implicit state
+    pub state: Vec<(Type, TokenStream, Span)>,
     
     // assertions/error handling
     pub assert: Vec<Assert>,
@@ -50,13 +49,6 @@ macro_rules! get_tla_type {
 
 impl TopLevelAttrs {
     pub fn finalize(self) -> Result<Self, SpanError> {
-        if *self.big && *self.little {
-            SpanError::err(
-                self.big.span().join(self.little.span()).unwrap(),
-                "Cannot set endian to both big and little endian"
-            )?;
-        }
-
         Ok(self)
     }
 
@@ -84,18 +76,27 @@ impl TopLevelAttrs {
     }
 
     pub fn from_top_level_attrs(attrs: Vec<TopLevelAttr>) -> Result<Self, CompileError> {
+        let state = get_tla_type!(attrs.State);
         let bigs = get_tla_type!(attrs.Big);
         let littles = get_tla_type!(attrs.Little);
 
-        if bigs.len() + littles.len() > 1 {
-            join_spans_err(&bigs, &littles, "Cannot set endianess more than once")?;
-        }
+        let endian_ty: Type = syn::parse_quote! { #ENDIAN_ENUM };
+        let endian_little: TokenStream = quote::quote! { #ENDIAN_ENUM::Little };
+        let endian_big: TokenStream = quote::quote! { #ENDIAN_ENUM::Big };
+
+        let bigs = bigs.into_iter().map(|b| (endian_ty.clone(), endian_big.clone(), b.span()));
+        let littles = littles.into_iter().map(|l| (endian_ty.clone(), endian_little.clone(), l.span()));
+        let state = state.into_iter()
+            .map(|s| (s.ty.clone(), s.expr.to_token_stream(), s.ty.span()))
+            .chain(bigs)
+            .chain(littles)
+            .collect();
 
         let return_all_errors = get_tla_type!(attrs.ReturnAllErrors);
         let return_unexpected_errors = get_tla_type!(attrs.ReturnUnexpectedError);
 
         if return_all_errors.len() + return_unexpected_errors.len() > 1 {
-            join_spans_err(&bigs, &littles, "Cannot set more than one return type")?;
+            join_spans_err(&return_all_errors, &return_unexpected_errors, "Cannot set more than one return type")?;
         }
 
         let magics = get_tla_type!(attrs.Magic);
@@ -128,8 +129,6 @@ impl TopLevelAttrs {
 
         Ok(Self {
             assert: asserts.into_iter().map(convert_assert).collect::<Result<_, _>>()?,
-            big: first_span_true(bigs),
-            little: first_span_true(littles),
             magic: magic.map(magic_to_tokens),
             magic_type: magic.map(magic_to_type),
             import: convert_import(import, import_tuple).unwrap_or_default(),
@@ -137,6 +136,7 @@ impl TopLevelAttrs {
             return_unexpected_error: first_span_true(return_unexpected_errors),
             pre_assert: pre_asserts.into_iter().map(convert_assert).collect::<Result<_, _>>()?,
             map: map.map(|x| x.to_token_stream()),
+            state
         })
     }
 }

@@ -36,6 +36,7 @@ parse_any!{
         Assert(MetaList<kw::assert, Expr>),
         PreAssert(MetaList<kw::pre_assert, Expr>),
         Map(MetaFunc<kw::map>),
+        State(TypeState<kw::state>),
     }
 }
 
@@ -68,6 +69,8 @@ parse_any!{
         Args(MetaList<kw::args, Expr>),
         ArgsTuple(MetaExpr<kw::args_tuple>),
         Assert(MetaList<kw::assert, Expr>),
+        State(TypeState<kw::state>),
+        SetState(TypeState<kw::set_state>),
 
         // expr type
         Calc(MetaExpr<kw::calc>),
@@ -133,6 +136,28 @@ impl Parse for ImportArgTuple {
 impl ToTokens for ImportArgTuple {
     fn to_tokens(&self, _tokens: &mut TokenStream2) {
         //self.arg.to_tokens(tokens) // TODO? I notice that MetaList doesn't do anything in its implementation
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TypeState<P: Parse> {
+    pub ident: P, // either state or set_state
+    pub parens: token::Paren,
+    pub ty: syn::Type,
+    pub eq: token::Eq,
+    pub expr: Expr
+}
+
+impl<P: Parse> Parse for TypeState<P> {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        Ok(TypeState {
+            ident: input.parse()?,
+            parens: parenthesized!(content in input),
+            ty: content.parse()?,
+            eq: content.parse()?,
+            expr: content.parse()?
+        })
     }
 }
 
