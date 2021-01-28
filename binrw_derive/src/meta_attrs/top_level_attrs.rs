@@ -76,7 +76,7 @@ impl TopLevelAttrs {
     }
 
     pub fn from_top_level_attrs(attrs: Vec<TopLevelAttr>) -> Result<Self, CompileError> {
-        let options = get_tla_type!(attrs.State);
+        let options = get_tla_type!(attrs.Options);
         let bigs = get_tla_type!(attrs.Big);
         let littles = get_tla_type!(attrs.Little);
 
@@ -87,6 +87,7 @@ impl TopLevelAttrs {
         let bigs = bigs.into_iter().map(|b| (endian_ty.clone(), endian_big.clone(), b.span()));
         let littles = littles.into_iter().map(|l| (endian_ty.clone(), endian_little.clone(), l.span()));
         let options = options.into_iter()
+            .flat_map(|o| o.fields.iter())
             .map(|s| (s.ty.clone(), s.expr.to_token_stream(), s.ty.span()))
             .chain(bigs)
             .chain(littles)

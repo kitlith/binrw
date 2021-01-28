@@ -36,7 +36,7 @@ parse_any!{
         Assert(MetaList<kw::assert, Expr>),
         PreAssert(MetaList<kw::pre_assert, Expr>),
         Map(MetaFunc<kw::map>),
-        State(TypeOption<kw::opts>),
+        Options(MetaList<kw::opts, TypeOption>),
     }
 }
 
@@ -69,8 +69,8 @@ parse_any!{
         Args(MetaList<kw::args, Expr>),
         ArgsTuple(MetaExpr<kw::args_tuple>),
         Assert(MetaList<kw::assert, Expr>),
-        State(TypeOption<kw::opts>),
-        SetState(TypeOption<kw::set_opts>),
+        Options(MetaList<kw::opts, TypeOption>),
+        SetOptions(MetaList<kw::set_opts, TypeOption>),
 
         // expr type
         Calc(MetaExpr<kw::calc>),
@@ -140,23 +140,18 @@ impl ToTokens for ImportArgTuple {
 }
 
 #[derive(Clone, Debug)]
-pub struct TypeOption<P: Parse> {
-    pub ident: P, // either state or set_state
-    pub parens: token::Paren,
+pub struct TypeOption {
     pub ty: syn::Type,
     pub eq: token::Eq,
     pub expr: Expr
 }
 
-impl<P: Parse> Parse for TypeOption<P> {
+impl Parse for TypeOption {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let content;
         Ok(TypeOption {
-            ident: input.parse()?,
-            parens: parenthesized!(content in input),
-            ty: content.parse()?,
-            eq: content.parse()?,
-            expr: content.parse()?
+            ty: input.parse()?,
+            eq: input.parse()?,
+            expr: input.parse()?
         })
     }
 }
