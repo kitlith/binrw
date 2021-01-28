@@ -2,7 +2,7 @@ use core::any::{Any, TypeId};
 
 use crate::{BinResult, Endian};
 use crate::io::{Read, Seek};
-use crate::options::{self, ReadOptions, ReadOptionsExt, TypeList};
+use crate::options::{self, ReadOptions, ReadOptionsExt, OptionsCollection};
 
 mod impls;
 

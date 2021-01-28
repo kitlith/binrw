@@ -27,7 +27,7 @@ pub static SEEK_FROM: IdentStr = from_crate!(io::SeekFrom);
 pub static BIN_RESULT: IdentStr = from_crate!(BinResult);
 pub static ENDIAN_ENUM: IdentStr = from_crate!(Endian);
 
-pub static TYPE_LIST_TRAIT: IdentStr = from_crate!(options::TypeList);
+pub static OPTIONS_TRAIT: IdentStr = from_crate!(options::OptionsCollection);
 pub static COUNT_OPTION: IdentStr = from_crate!(options::VecCount);
 pub static OFFSET_OPTION: IdentStr = from_crate!(options::FileOffset);
 pub static DONT_OUTPUT_OPTION: IdentStr = from_crate!(options::DontOutputTemplate);

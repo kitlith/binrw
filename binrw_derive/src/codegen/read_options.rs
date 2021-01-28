@@ -229,7 +229,7 @@ fn merge_tlas(top_level: &TopLevelAttrs, enum_level: TopLevelAttrs) -> Result<To
 
     out.pre_assert.extend_from_slice(&variant_level.pre_assert);
     out.assert.extend_from_slice(&variant_level.assert);
-    out.state.extend_from_slice(&variant_level.state);
+    out.options.extend_from_slice(&variant_level.options);
 
     Ok(out)
 }
@@ -596,10 +596,10 @@ fn get_modified_options<'a, I: IntoIterator<Item = (Type, TokenStream, Span)>>(o
             #OPT
         }
     } else {
-        let type_list_trait = TYPE_LIST_TRAIT;
+        let options_trait = OPTIONS_TRAIT;
         let inserts = expr.iter()
             .map(|(ty, expr, _)| quote!{
-                #type_list_trait::insert(&mut temp, ::core::convert::Into::<#ty>::into(#expr));
+                #options_trait::insert(&mut temp, ::core::convert::Into::<#ty>::into(#expr));
             });
 
         // generate n choose 2 guard expressions, aka n(n-1)/2 or O(n^2)
@@ -633,7 +633,7 @@ fn get_new_options(idents: &[Ident], field_attrs: &[FieldLevelAttrs]) -> Vec<Tok
 }
 
 fn get_top_level_binread_options(tla: &TopLevelAttrs) -> TokenStream {
-    get_modified_options(tla.state.iter().cloned())
+    get_modified_options(tla.options.iter().cloned())
 }
 
 fn get_magic_pre_assertion(tla: &TopLevelAttrs) -> TokenStream {

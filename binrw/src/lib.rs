@@ -148,7 +148,7 @@ pub use {
     options::{
         ReadOptions,
         ReadOptionsExt,
-        TypeList
+        OptionsCollection
     }
 };
 /// Derive macro for BinRead. [Usage here](BinRead).

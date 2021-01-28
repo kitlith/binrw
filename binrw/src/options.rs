@@ -2,7 +2,7 @@ use crate::Endian;
 use rpds::HashTrieMap;
 use std::any::{TypeId, Any};
 
-pub trait TypeList {
+pub trait OptionsCollection {
     #[must_use]
     fn get<T: 'static>(&self) -> Option<&T>;
     fn insert<T: 'static>(&mut self, value: T) -> bool;
@@ -10,7 +10,7 @@ pub trait TypeList {
     fn contains<T: 'static>(&self) -> bool;
 }
 
-impl TypeList for () {
+impl OptionsCollection for () {
     fn get<T: 'static>(&self) -> Option<&T> {
         None
     }
@@ -24,7 +24,7 @@ impl TypeList for () {
     }
 }
 
-impl TypeList for HashTrieMap<TypeId, Box<dyn Any>> {
+impl OptionsCollection for HashTrieMap<TypeId, Box<dyn Any>> {
     fn get<T: 'static>(&self) -> Option<&T> {
         self.get(&TypeId::of::<T>())
             .map(AsRef::as_ref)
@@ -42,12 +42,12 @@ impl TypeList for HashTrieMap<TypeId, Box<dyn Any>> {
 }
 
 #[derive(Clone, Default)]
-pub struct Cons<V: 'static, R: TypeList> {
+pub struct OptionsNode<V: 'static, R: OptionsCollection> {
     val: V,
     rest: R
 }
 
-impl<V: 'static, R: TypeList> TypeList for Cons<V, R> {
+impl<V: 'static, R: OptionsCollection> OptionsCollection for OptionsNode<V, R> {
     fn get<T: 'static>(&self) -> Option<&T> {
         Any::downcast_ref::<T>(&self.val).or_else(|| self.rest.get::<T>())
     }
@@ -76,7 +76,7 @@ pub struct VecCount(pub Option<usize>);
 pub struct FileOffset(pub u64);
 
 /// Runtime-configured options for reading the type using [`BinRead`](BinRead)
-type BasicReadOptions<Rest> = Cons<Endian, Cons<VecCount, Cons<FileOffset, Rest>>>;
+type BasicReadOptions<Rest> = OptionsNode<Endian, OptionsNode<VecCount, OptionsNode<FileOffset, Rest>>>;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct DontOutputTemplate(pub bool);
@@ -84,7 +84,7 @@ pub struct DontOutputTemplate(pub bool);
 pub struct VariableName(pub Option<&'static str>);
 
 #[cfg(feature = "debug_template")]
-type TemplateReadOptions<Rest> = Cons<DontOutputTemplate, Cons<VariableName, Rest>>;
+type TemplateReadOptions<Rest> = OptionsNode<DontOutputTemplate, OptionsNode<VariableName, Rest>>;
 
 #[cfg(feature = "debug_template")]
 pub type ReadOptions<Rest = ()> = BasicReadOptions<TemplateReadOptions<Rest>>;
@@ -101,7 +101,7 @@ pub trait ReadOptionsExt<Rest> {
     fn variable_name(&self);
 }
 
-impl<Rest: TypeList> ReadOptionsExt<Rest> for ReadOptions<Rest> {
+impl<Rest: OptionsCollection> ReadOptionsExt<Rest> for ReadOptions<Rest> {
     fn endian(&self) -> Endian {
         *self.get::<Endian>().unwrap()
     }

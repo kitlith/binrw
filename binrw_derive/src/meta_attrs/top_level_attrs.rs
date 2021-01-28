@@ -5,7 +5,7 @@ use syn::parse::Parse;
 use proc_macro2::Span;
 use crate::CompileError;
 use quote::ToTokens;
-use super::parser::{ImportArg, ImportArgTuple, TypeState};
+use super::parser::{ImportArg, ImportArgTuple, TypeOption};
 use crate::codegen::sanitization::ENDIAN_ENUM;
 
 #[derive(Debug, Clone)]
@@ -21,7 +21,7 @@ pub struct TopLevelAttrs {
     //  All-level attributes
     // ======================
     // implicit state
-    pub state: Vec<(Type, TokenStream, Span)>,
+    pub options: Vec<(Type, TokenStream, Span)>,
     
     // assertions/error handling
     pub assert: Vec<Assert>,
@@ -76,7 +76,7 @@ impl TopLevelAttrs {
     }
 
     pub fn from_top_level_attrs(attrs: Vec<TopLevelAttr>) -> Result<Self, CompileError> {
-        let state = get_tla_type!(attrs.State);
+        let options = get_tla_type!(attrs.State);
         let bigs = get_tla_type!(attrs.Big);
         let littles = get_tla_type!(attrs.Little);
 
@@ -86,7 +86,7 @@ impl TopLevelAttrs {
 
         let bigs = bigs.into_iter().map(|b| (endian_ty.clone(), endian_big.clone(), b.span()));
         let littles = littles.into_iter().map(|l| (endian_ty.clone(), endian_little.clone(), l.span()));
-        let state = state.into_iter()
+        let options = options.into_iter()
             .map(|s| (s.ty.clone(), s.expr.to_token_stream(), s.ty.span()))
             .chain(bigs)
             .chain(littles)
@@ -136,7 +136,7 @@ impl TopLevelAttrs {
             return_unexpected_error: first_span_true(return_unexpected_errors),
             pre_assert: pre_asserts.into_iter().map(convert_assert).collect::<Result<_, _>>()?,
             map: map.map(|x| x.to_token_stream()),
-            state
+            options
         })
     }
 }
