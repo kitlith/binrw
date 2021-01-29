@@ -577,14 +577,9 @@ fn get_option_value_expr(field_attrs: &FieldLevelAttrs, ident: &Ident)
         None
     };
 
-    let count_ty: Type = syn::parse_quote! { #COUNT_OPTION };
-    let count = field_attrs.count.as_ref()
-        .map(|count| (count_ty, quote!{ #COUNT_OPTION(Some((#count) as usize)) }, count.span()));
-
-    count.into_iter()
+    offset.into_iter()
         .chain(endian)
         .chain(variable_name)
-        .chain(offset)
 }
 
 fn get_modified_options<'a, I: IntoIterator<Item = (Type, TokenStream, Span)>>(options: I)

@@ -10,7 +10,7 @@
 //! struct Dog {
 //!     bone_pile_count: u8,
 //!
-//!     #[br(big, count = bone_pile_count)]
+//!     #[br(big, args(bone_pile_count as usize, ()))]
 //!     bone_piles: Vec<u16>,
 //!
 //!     #[br(align_before = 0xA)]
@@ -105,7 +105,7 @@
 //! #[derive(BinRead)]
 //! struct U32CountVec<T: BinRead<Args=()>> {
 //!     count: u32,
-//!     #[br(count = count)]
+//!     #[br(args(count as usize, ()))]
 //!     data: Vec<T>,
 //! }
 //! ```

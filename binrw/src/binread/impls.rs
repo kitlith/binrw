@@ -12,18 +12,18 @@ macro_rules! binread_impl {
                     
                     #[cfg(feature = "debug_template")]
                     {
-                        if !options.dont_output_to_template {
-                            let pos = reader.seek(SeekFrom::Current(0))?;
-                            if let Some(name) = options.variable_name {
+                        if !options.dont_output_to_template() {
+                            let pos = reader.seek(crate::SeekFrom::Current(0))?;
+                            if let Some(name) = options.variable_name() {
                                 binary_template::write_named(
-                                    options.endian,
+                                    options.endian(),
                                     pos,
                                     stringify!($type_name),
                                     name
                                 );
                             } else {
                                 binary_template::write(
-                                    options.endian,
+                                    options.endian(),
                                     pos,
                                     stringify!($type_name)
                                 );
@@ -67,19 +67,12 @@ impl BinRead for char {
 binread_impl!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
 
 impl<C: Copy + 'static, B: BinRead<Args = C>> BinRead for Vec<B> {
-    type Args = B::Args;
+    type Args = (usize, B::Args);
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args) -> BinResult<Self> {
-        let mut options = options.clone();
-        let count = match options.count() {
-            Some(x) => x,
-            None => panic!("Missing count for Vec"),
-        };
-        options.insert(options::VecCount(None));
-
+    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, (count, args): Self::Args) -> BinResult<Self> {
         #[cfg(feature = "debug_template")]
-        {
-            let pos = reader.seek(SeekFrom::Current(0))?;
+        let options = {
+            let pos = reader.seek(crate::SeekFrom::Current(0))?;
             let type_name = core::any::type_name::<B>().rsplitn(1, "::").nth(0).unwrap();
 
             // this is a massive hack. I'm so sorry
@@ -91,10 +84,12 @@ impl<C: Copy + 'static, B: BinRead<Args = C>> BinRead for Vec<B> {
                 type_name
             };
 
-            binary_template::write_vec(options.endian, pos, type_name, count);
+            binary_template::write_vec(options.endian(), pos, type_name, count);
 
-            options.dont_output_to_template = true;
-        }
+            let mut tmp = options.clone();
+            tmp.insert(options::DontOutputTemplate(true));
+            tmp
+        };
 
 
         (0..count)
@@ -104,7 +99,7 @@ impl<C: Copy + 'static, B: BinRead<Args = C>> BinRead for Vec<B> {
             .collect()
     }
 
-    fn after_parse<R>(&mut self, reader: &mut R, ro: &ReadOptions, args: Self::Args)-> BinResult<()>
+    fn after_parse<R>(&mut self, reader: &mut R, ro: &ReadOptions, (_, args): Self::Args)-> BinResult<()>
         where R: Read + Seek,
     {
         for val in self.iter_mut() {
@@ -123,28 +118,26 @@ macro_rules! binread_array_impl {
 
                 fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args) -> BinResult<Self> {
                     #[cfg(feature = "debug_template")]
-                    {
-                        let pos = reader.seek(SeekFrom::Current(0))?;
+                    let options = {
+                        let pos = reader.seek(crate::SeekFrom::Current(0))?;
                         let type_name = core::any::type_name::<B>().rsplitn(1, "::").nth(0).unwrap();
 
-                        if let Some(name) = options.variable_name {
+                        if let Some(name) = options.variable_name() {
                             binary_template::write_vec_named(
-                                options.endian, pos, type_name, $size, name
+                                options.endian(), pos, type_name, $size, name
                             );
                         } else {
-                            binary_template::write_vec(options.endian, pos, type_name, $size);
+                            binary_template::write_vec(options.endian(), pos, type_name, $size);
                         }
-                    }
 
-                    #[cfg(feature = "debug_template")]
-                    let options = &ReadOptions {
-                        dont_output_to_template: true,
-                        ..*options
+                        let mut temp = options.clone();
+                        temp.insert(options::DontOutputTemplate(true));
+                        temp
                     };
 
                     let mut arr: [B; $size] = Default::default();
                     for i in 0..$size {
-                        arr[i] = BinRead::read_options(reader, options, args)?;
+                        arr[i] = BinRead::read_options(reader, &options, args)?;
                     }
                     Ok(arr)
                 }

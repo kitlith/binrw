@@ -71,12 +71,10 @@ impl<V: 'static, R: OptionsCollection> OptionsCollection for OptionsNode<V, R> {
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct VecCount(pub Option<usize>);
-#[derive(Debug, PartialEq, Clone, Default)]
 pub struct FileOffset(pub u64);
 
 /// Runtime-configured options for reading the type using [`BinRead`](BinRead)
-type BasicReadOptions<Rest> = OptionsNode<Endian, OptionsNode<VecCount, OptionsNode<FileOffset, Rest>>>;
+type BasicReadOptions<Rest> = OptionsNode<Endian, OptionsNode<FileOffset, Rest>>;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct DontOutputTemplate(pub bool);
@@ -93,21 +91,16 @@ pub type ReadOptions<Rest = ()> = BasicReadOptions<Rest>;
 
 pub trait ReadOptionsExt<Rest> {
     fn endian(&self) -> Endian;
-    fn count(&self) -> Option<usize>;
     fn offset(&self) -> u64;
     #[cfg(feature = "debug_template")]
-    fn dont_output_to_template(&self);
+    fn dont_output_to_template(&self) -> bool;
     #[cfg(feature = "debug_template")]
-    fn variable_name(&self);
+    fn variable_name(&self) -> Option<&'static str>;
 }
 
 impl<Rest: OptionsCollection> ReadOptionsExt<Rest> for ReadOptions<Rest> {
     fn endian(&self) -> Endian {
         *self.get::<Endian>().unwrap()
-    }
-
-    fn count(&self) -> Option<usize> {
-        self.get::<VecCount>().unwrap().0
     }
 
     fn offset(&self) -> u64 {

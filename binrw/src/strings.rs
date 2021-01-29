@@ -106,18 +106,18 @@ impl BinRead for NullWideString {
         #[cfg(feature = "debug_template")] {
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
 
-            if !options.dont_output_to_template {
+            if !options.dont_output_to_template() {
                 binary_template::write_named(
-                    options.endian,
+                    options.endian(),
                     pos,
                     "wstring",
-                    &options.variable_name
+                    &options.variable_name()
                         .map(ToString::to_string)
                         .unwrap_or_else(|| binary_template::get_next_var_name())
                 );
             
             }
-            options.dont_output_to_template = true;
+            options.insert(options::DontOutputTemplate(true));
         }
         <Vec<NonZeroU16>>::read_options(reader, &options, args)
             .map(|chars| chars.into())
@@ -133,12 +133,12 @@ impl BinRead for NullString {
         #[cfg(feature = "debug_template")] {
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
 
-            if !options.dont_output_to_template {
+            if !options.dont_output_to_template() {
                 binary_template::write_named(
-                    options.endian,
+                    options.endian(),
                     pos,
                     "string",
-                    &options.variable_name
+                    &options.variable_name()
                             .map(ToString::to_string)
                             .unwrap_or_else(|| binary_template::get_next_var_name())
                 );

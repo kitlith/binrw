@@ -78,7 +78,7 @@ pub fn magic<R, B>(reader: &mut R, expected: B, options: &ReadOptions) -> BinRes
     #[cfg(feature = "debug_template")]
     let mut options = options.clone();
     #[cfg(feature = "debug_template")] {
-        options.variable_name = Some("magic");
+        options.insert(options::VariableName(Some("magic")));
     }
     let val = B::read_options(reader, &options, ())?;
     if val == expected {

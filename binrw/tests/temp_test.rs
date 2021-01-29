@@ -6,7 +6,7 @@ struct Test {
     #[br(temp)]
     len: u32,
 
-    #[br(count = len)]
+    #[br(args(len as usize, ()))]
     y: Vec<u8>,
 }
 

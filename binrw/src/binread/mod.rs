@@ -2,7 +2,9 @@ use core::any::{Any, TypeId};
 
 use crate::{BinResult, Endian};
 use crate::io::{Read, Seek};
-use crate::options::{self, ReadOptions, ReadOptionsExt, OptionsCollection};
+pub use crate::options::{self, ReadOptions, ReadOptionsExt, OptionsCollection};
+#[cfg(feature = "debug_template")]
+use crate::binary_template;
 
 mod impls;
 

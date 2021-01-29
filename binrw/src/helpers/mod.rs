@@ -1,4 +1,4 @@
-use crate::{BinResult, ReadOptions, ReadOptionsExt, io::{Read, Seek}};
+use crate::{BinResult, ReadOptions, io::{Read, Seek}};
 use crate::alloc::{vec::Vec, vec};
 
 mod file_ptr;
@@ -15,7 +15,7 @@ pub use punctuated::*;
 /// # use binrw::{BinRead, helpers::read_bytes, io::Cursor, BinReaderExt};
 /// #[derive(BinRead)]
 /// struct BunchaBytes {
-///     #[br(count = 5)]
+///     #[br(args(5), parse_with = read_bytes)]
 ///     data: Vec<u8>
 /// }
 ///
@@ -23,11 +23,7 @@ pub use punctuated::*;
 /// # let x: BunchaBytes = x.read_be().unwrap();
 /// # assert_eq!(x.data, &[0, 1, 2, 3, 4]);
 /// ```
-pub fn read_bytes<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: ()) -> BinResult<Vec<u8>> {
-    let count = match options.count() {
-        Some(x) => x,
-        None => panic!("Missing count for read_bytes")
-    };
+pub fn read_bytes<R: Read + Seek>(reader: &mut R, _options: &ReadOptions, (count,): (usize,)) -> BinResult<Vec<u8>> {
     let mut buf = vec![0; count];
     reader.read_exact(&mut buf)?;
 

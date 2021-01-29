@@ -12,7 +12,6 @@ pub(crate) struct FieldLevelAttrs {
     pub ignore: bool,
     pub default: bool,
     pub calc: Option<TokenStream>,
-    pub count: Option<TokenStream>,
     pub offset: Option<TokenStream>,
     pub offset_after: Option<TokenStream>,
     pub if_cond: Option<TokenStream>,
@@ -101,7 +100,6 @@ impl FieldLevelAttrs {
 
         // expr type
         let calc = get_fla_type!(attrs.Calc);
-        let count = get_fla_type!(attrs.Count);
         let is_little = get_fla_type!(attrs.IsLittle);
         let is_big = get_fla_type!(attrs.IsBig);
         let offset = get_fla_type!(attrs.Offset);
@@ -143,7 +141,7 @@ impl FieldLevelAttrs {
 
         only_first!(
             pad_before, pad_after, align_before, align_after, seek_before, pad_size_to,
-            calc, count, is_little, is_big, offset, offset_after, if_cond, map, magic,
+            calc, is_little, is_big, offset, offset_after, if_cond, map, magic,
             parse_with, args, args_tuple
         );
 
@@ -167,7 +165,6 @@ impl FieldLevelAttrs {
             temp,
             
             calc,
-            count,
             offset,
             offset_after,
             if_cond,

@@ -68,7 +68,6 @@ test_fla!(fla_assert, "assert(
     offsets.1 - offsets.0 == 0x10,
     BadDifferenceError(offsets.1 - offsets.0)
 )");
-test_fla!(fla_count, "count = extra_entry_count + 1");
 test_fla!(fla_args, "args(x, (y, z), 3 + 4)");
 test_fla!(fla_args_tuple, "args_tuple = x");
 test_fla!(fla_default, "default");

@@ -21,7 +21,6 @@
 //! | [try](#try) | fields | Attempt to parse a value and store `None` if parsing fails.
 //! | [parse_with](#custom-parsers) | fields | Use a custom parser function for reading from a file
 //! | [calc](#calculations) | fields | Compute an expression to store. Can use previously read values.
-//! | [count](#count) | fields | Set the length for a vector
 //! | [is_little](#byteorder) | fields | Conditionally set the endian to little
 //! | [is_big](#byteorder) | fields | Conditionally set the endian to big
 //! | [offset](#offset) | fields | Change the offset a [`FilePtr`](crate::FilePtr) is relative to
@@ -223,7 +222,7 @@
 //!     #[br(temp, big)]
 //!     len: u32,
 //!
-//!     #[br(count = len)]
+//!     #[br(args(len as usize, ()))]
 //!     data: Vec<u8>
 //! }
 //!
@@ -235,7 +234,7 @@
 //!
 //! This can be used in combination with [`calc`](#calculations) to allow for parsing in one form
 //! then transforming to another to actually expose from the struct. It can also be used alongside
-//! [`count`](#count) in order to reduce redundant information being stored since a `Vec` will
+//! [`args`](#args) in order to reduce redundant information being stored since a `Vec` will
 //! already be storing a length and thus a count field need not be preserved.
 //!
 //! # Postprocessing
@@ -424,44 +423,6 @@
 //! }
 //!
 //! # assert_eq!(Cursor::new(b"\0\0\0\x01").read_be::<MyType>().unwrap().var_plus_3, 4);
-//! ```
-//! **Note:** supports using previous fields
-//!
-//! # Count
-//!
-//! The `count` attribute allows you to set the number of values to read for a [`Vec`](Vec). If
-//! you wish to use `count` with a custom parser or a type's [`BinRead`](crate::BinRead) implementation
-//! you can access it using the [`count`](crate::ReadOptions::count) field on the [`ReadOptions`](crate::ReadOptions) type.
-//!
-//! ```rust
-//! # use binrw::{prelude::*, io::Cursor};
-//! #[derive(BinRead)]
-//! struct MyType {
-//!     size: u32,
-//!     #[br(count = size)]
-//!     data: Vec<u8>,
-//! }
-//!
-//! # assert_eq!(
-//! #    Cursor::new(b"\0\0\0\x04\x01\x02\x03\x04").read_be::<MyType>().unwrap().data,
-//! #    &[1u8, 2, 3, 4]
-//! # );
-//! ```
-//!
-//! You can even combine `count` with [`FilePtr`](crate::FilePtr) to read a [`Vec`](Vec) at a particular offset.
-//! ```rust
-//! # use binrw::{prelude::*, io::Cursor, FilePtr};
-//! #[derive(BinRead)]
-//! struct MyType {
-//!     size: u32,
-//!     #[br(count = size)]
-//!     data: FilePtr<u32, Vec<u8>>,
-//! }
-//!
-//! # assert_eq!(
-//! #    *(Cursor::new(b"\0\0\0\x04\0\0\0\x09\0\x01\x02\x03\x04").read_be::<MyType>().unwrap().data),
-//! #    &[1u8, 2, 3, 4]
-//! # );
 //! ```
 //! **Note:** supports using previous fields
 //!

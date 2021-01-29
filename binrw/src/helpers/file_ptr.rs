@@ -86,21 +86,21 @@ impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Pt
 
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
             let type_name = &core::any::type_name::<Ptr>();
-            if let Some(name) = options.variable_name {
+            if let Some(name) = options.variable_name() {
                 binary_template::write_named(
-                    options.endian,
+                    options.endian(),
                     pos,
                     type_name,
                     &format!("ptr_to_{}", name)
                 );
             } else {
                 binary_template::write(
-                    options.endian,
+                    options.endian(),
                     pos,
                     type_name,
                 );
             }
-            options.dont_output_to_template = true;
+            options.insert(options::DontOutputTemplate(true));
 
             options
         };

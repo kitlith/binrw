@@ -29,7 +29,6 @@ kws!{
     map,        // map = [func]
     parse_with, // parse_with = [func]
     calc,       // calc = [expr]
-    count,      // count = [expr]
     is_little,  // is_little = [expr]
     is_big,     // is_big = [expr]
     args,       // args(expr, ..)

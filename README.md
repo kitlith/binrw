@@ -13,7 +13,7 @@ BinRead uses a derive macro for declaratively defining binary parsing methods fo
 struct Dog {
     bone_pile_count: u8,
  
-    #[br(big, count = bone_pile_count)]
+    #[br(big, args(bone_pile_count, ()))]
     bone_piles: Vec<u16>,
  
     #[br(align_before = 0xA)]

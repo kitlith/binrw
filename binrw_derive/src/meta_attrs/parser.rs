@@ -74,7 +74,6 @@ parse_any!{
 
         // expr type
         Calc(MetaExpr<kw::calc>),
-        Count(MetaExpr<kw::count>),
         IsLittle(MetaExpr<kw::is_little>),
         IsBig(MetaExpr<kw::is_big>),
         Offset(MetaExpr<kw::offset>),
