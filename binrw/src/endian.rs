@@ -1,6 +1,8 @@
 //! An enum to represent what endianness to read as
 
 use crate::alloc::string::String;
+use crate::io::{Read, Seek, SeekFrom};
+use crate::{BinResult, ReadOptions, BinRead, OptionsCollection};
 
 /// An enum to represent what endianness to read as
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,6 +33,18 @@ impl Endian {
             0xFFFE => Some(Self::Big),
             _ => None
         }
+    }
+
+    pub fn parse_bom<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: ()) -> BinResult<Self> {
+        let pos = reader.seek(SeekFrom::Current(0))?;
+
+        let mut options = options.clone();
+        options.insert::<Endian>(Endian::Big);
+
+        let bom = u16::read_options(reader, &options, ())?;
+
+        Endian::from_be_bom(bom)
+            .ok_or_else(|| crate::Error::BadMagic { pos, found: Box::new(bom) })
     }
 }
 

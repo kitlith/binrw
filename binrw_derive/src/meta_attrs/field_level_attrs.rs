@@ -1,6 +1,8 @@
 use super::*;
 use super::parser::{FieldLevelAttr, MetaAttrList};
 use crate::CompileError;
+use proc_macro2::Span;
+use crate::meta_attrs::parser::MetaExpr;
 
 #[derive(Debug, Default)]
 pub(crate) struct FieldLevelAttrs {
@@ -12,7 +14,7 @@ pub(crate) struct FieldLevelAttrs {
     pub ignore: bool,
     pub default: bool,
     pub calc: Option<TokenStream>,
-    pub offset: Option<TokenStream>,
+    // TODO: rework fileptr and remove offset attrs
     pub offset_after: Option<TokenStream>,
     pub if_cond: Option<TokenStream>,
     pub deref_now: bool,
@@ -24,11 +26,9 @@ pub(crate) struct FieldLevelAttrs {
     // ======================
     //  All-level attributes
     // ======================
-    // endian
-    pub little: SpannedValue<bool>,
-    pub big: SpannedValue<bool>,
-    pub is_big: Option<TokenStream>,
-    pub is_little: Option<TokenStream>,
+    // implicit state
+    pub options: Vec<(Type, TokenStream, Span)>,
+    pub set_options: Vec<(Type, TokenStream, Span)>,
     
     // assertions/error handling
     pub assert: Vec<Assert>,
@@ -76,8 +76,8 @@ impl FieldLevelAttrs {
                 .collect();
 
         // bool type
-        let big = first_span_true(get_fla_type!(attrs.Big));
-        let little = first_span_true(get_fla_type!(attrs.Little));
+        let bigs = get_fla_type!(attrs.Big);
+        let littles = get_fla_type!(attrs.Little);
         let default = !get_fla_type!(attrs.Default).is_empty();
         let ignore = !get_fla_type!(attrs.Ignore).is_empty();
         let deref_now = !get_fla_type!(attrs.DerefNow).is_empty();
@@ -113,6 +113,9 @@ impl FieldLevelAttrs {
         let seek_before = get_fla_type!(attrs.SeekBefore);
         let pad_size_to = get_fla_type!(attrs.PadSizeTo);
 
+        let options = get_fla_type!(attrs.Options);
+        let set_options = get_fla_type!(attrs.SetOptions);
+
         // TODO: This is basically get_only_first but for mutually incompatible attributes. refactor?
         if args.len() > 0 && args_tuple.len() > 0 {
             let mut spans = args.iter()
@@ -141,9 +144,52 @@ impl FieldLevelAttrs {
 
         only_first!(
             pad_before, pad_after, align_before, align_after, seek_before, pad_size_to,
-            calc, is_little, is_big, offset, offset_after, if_cond, map, magic,
+            calc, offset_after, if_cond, map, magic,
             parse_with, args, args_tuple
         );
+
+        // TODO: preform some dedup between top level and field level attrs
+        use crate::codegen::sanitization::{ENDIAN_ENUM, OFFSET_OPTION};
+        let endian_ty: Type = syn::parse_quote! { #ENDIAN_ENUM };
+        let endian_little: TokenStream = quote::quote! { #ENDIAN_ENUM::Little };
+        let endian_big: TokenStream = quote::quote! { #ENDIAN_ENUM::Big };
+
+        let offset_ty: Type = syn::parse_quote! { #OFFSET_OPTION };
+
+        let bigs = bigs.into_iter()
+            .map(|b| (endian_ty.clone(), endian_big.clone(), b.span()));
+        let littles = littles.into_iter()
+            .map(|l| (endian_ty.clone(), endian_little.clone(), l.span()));
+        let is_big = is_big.into_iter()
+            .map(|MetaExpr { ident, expr}| (endian_ty.clone(), quote::quote! {
+                if (#expr) {
+                    #ENDIAN_ENUM::Big
+                } else {
+                    #ENDIAN_ENUM::Little
+                }
+            }, ident.span()));
+        let is_little = is_little.into_iter()
+            .map(|MetaExpr { ident, expr}| (endian_ty.clone(), quote::quote! {
+                if (#expr) {
+                    #ENDIAN_ENUM::Little
+                } else {
+                    #ENDIAN_ENUM::Big
+                }
+            }, ident.span()));
+        let offset = offset.into_iter()
+            .map(|MetaExpr {ident, expr}| (offset_ty.clone(), expr.to_token_stream(), ident.span()));
+        let options = options.into_iter()
+            .flat_map(|o| o.fields.iter())
+            .map(|s| (s.ty.clone(), s.expr.to_token_stream(), s.ty.span()))
+            .chain(bigs).chain(is_big)
+            .chain(littles).chain(is_little)
+            .chain(offset)
+            .collect();
+
+        let set_options = set_options.into_iter()
+            .flat_map(|o| o.fields.iter())
+            .map(|s| (s.ty.clone(), s.expr.to_token_stream(), s.ty.span()))
+            .collect();
 
         let assert = vec![];
 
@@ -154,8 +200,6 @@ impl FieldLevelAttrs {
         };
         
         Ok(Self {
-            little,
-            big,
             ignore,
             default,
             deref_now,
@@ -165,17 +209,17 @@ impl FieldLevelAttrs {
             temp,
             
             calc,
-            offset,
             offset_after,
             if_cond,
-            is_big,
-            is_little,
             pad_before,
             pad_after,
             align_before,
             align_after,
             seek_before,
             pad_size_to,
+
+            options,
+            set_options,
 
             parse_with,
             map,

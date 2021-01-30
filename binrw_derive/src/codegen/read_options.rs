@@ -18,7 +18,7 @@ use syn::{Ident, DeriveInput, Type, DataStruct, DataEnum, Expr, Field, Fields, V
 pub fn generate(input: &DeriveInput, tla: &TopLevelAttrs) -> Result<TokenStream, CompileError> {
     if let Some(map) = &tla.map {
         Ok(quote!(
-            #READ_METHOD(#READER, #OPT, #ARGS).map(#map)
+            #READ_METHOD(#READER, &#OPT, #ARGS).map(#map)
         ))
     } else {
         match &input.data {
@@ -69,7 +69,7 @@ fn generate_enum_match(variants: &Punctuated<Variant, Comma>) -> Option<TokenStr
     };
 
     Some(quote!{
-        Ok(match #READ_METHOD(#READER, #OPT, ())? {
+        Ok(match #READ_METHOD(#READER, &#OPT, ())? {
             #(
                 #magics => Self::#var_names,
             )*
@@ -162,7 +162,7 @@ fn generate_enum(input: &DeriveInput, tla: &TopLevelAttrs, en: &DataEnum) -> Res
         )*
 
         #(
-            let #last_attempt = #variant_funcs2(#reader, #opt, #args);
+            let #last_attempt = #variant_funcs2(#reader, &#opt, #args);
             if #last_attempt.is_ok() {
                 return #last_attempt;
             } else {
@@ -294,7 +294,8 @@ fn generate_body(
 
     let field_asserts = get_field_assertions(&field_attrs);
     let after_parse = get_after_parse_handlers(&field_attrs);
-    let top_level_option = get_top_level_binread_options(&tla);
+    let options_require_clone = field_attrs.iter().any(|fla| !fla.set_options.is_empty());
+    let top_level_option = get_top_level_binread_options(&tla, options_require_clone);
     let magic_handler = get_magic_pre_assertion(&tla);
 
     let handle_error = handle_error();
@@ -329,10 +330,13 @@ fn generate_body(
 
     let (save_position, restore_position) = save_restore_position(&field_attrs);
 
+    let possible_set_options = field_attrs.iter()
+        .map(|field| gen_option_modifications(&OPT, &field.set_options));
+
     Ok(quote!{
         let #arg_vars = #ARGS;
         
-        let #OPT = #top_level_option;
+        #top_level_option
         
         #magic_handler
 
@@ -343,7 +347,7 @@ fn generate_body(
             let #name_options = #new_options;
             
             #setup_possible_if
-            let #opt_mut #names_after_ignores: #ty_after_ignores = 
+            let #opt_mut #names_after_ignores: #ty_after_ignores =
                 #possible_if {
                     #seek_before
                     #skip_before
@@ -368,6 +372,8 @@ fn generate_body(
                     __binread__temp
                 } #possible_else;
             #restore_position
+
+            #possible_set_options
         )*
 
         #(
@@ -378,6 +384,10 @@ fn generate_body(
 
         #(
             #possible_if_let {
+                // FIXME: this is only here to prevent references to top level options from sticking around
+                //  so that mutably setting options works but is unnecessary if the options were cloned
+                //  we should pivot to only binding a name when we perform a clone
+                let #name_options = #new_options;
                 #after_parse(
                     #possible_mut #name,
                     #repeat_reader_ident,
@@ -535,40 +545,6 @@ fn get_passed_args(field_attrs: &[FieldLevelAttrs]) -> Vec<TokenStream> {
 fn get_option_value_expr(field_attrs: &FieldLevelAttrs, ident: &Ident)
                          -> impl Iterator<Item = (Type, TokenStream, Span)>
 {
-    let endian_ty: Type = syn::parse_quote! { #ENDIAN_ENUM };
-    let endian = if let Some(condition) = &field_attrs.is_big {
-        Some((endian_ty, quote!{
-            if (#condition) {
-                #ENDIAN_ENUM::Big
-            } else {
-                #ENDIAN_ENUM::Little
-            }
-        }, condition.span()))
-    } else if let Some(condition) = &field_attrs.is_little {
-        Some((endian_ty, quote!{
-            if (#condition) {
-                #ENDIAN_ENUM::Little
-            } else {
-                #ENDIAN_ENUM::Big
-            }
-        }, condition.span()))
-    } else if *field_attrs.big {
-        Some((endian_ty, quote!{ #ENDIAN_ENUM::Big }, field_attrs.big.span()))
-    } else if *field_attrs.little {
-        Some((endian_ty, quote!{ #ENDIAN_ENUM::Little }, field_attrs.little.span()))
-    } else {
-        None
-    };
-
-    let offset_ty: Type = syn::parse_quote! { #OFFSET_OPTION };
-    let offset =
-        field_attrs.offset
-            .as_ref()
-            .map(|offset| {
-                let offset = closure_wrap(offset);
-                (offset_ty.clone(), quote! { #OFFSET_OPTION(#offset) }, offset.span())
-            });
-
     let var_name_ty: Type = syn::parse_quote! { #VARIABLE_NAME_OPTION };
     let variable_name = if cfg!(feature = "debug_template") {
         let name = ident.to_string();
@@ -577,43 +553,49 @@ fn get_option_value_expr(field_attrs: &FieldLevelAttrs, ident: &Ident)
         None
     };
 
-    offset.into_iter()
-        .chain(endian)
+    field_attrs.options.clone().into_iter()
         .chain(variable_name)
+}
+
+fn gen_option_modifications(ident: &IdentStr, options: &Vec<(Type, TokenStream, Span)>)
+        -> TokenStream
+{
+    let inserts = options.iter().map(|(ty, expr, _)| quote!{
+        #OPTIONS_TRAIT::insert(&mut #ident, ::core::convert::Into::<#ty>::into(#expr));
+    });
+
+    // generate n choose 2 guard expressions, aka n(n-1)/2 or O(n^2)
+    let guards = options.iter().enumerate()
+        .flat_map(|(idx, (ty_a, _, span_a))|
+            options[idx+1..].iter()
+                .map(move |(ty_b, _, span_b)| {
+                    require_types_not_equal(ty_a, ty_b, span_a.join(*span_b).unwrap_or(*span_b))
+                })
+        );
+
+    quote! {
+        #(#guards)*
+        #(#inserts)*
+    }
 }
 
 fn get_modified_options<'a, I: IntoIterator<Item = (Type, TokenStream, Span)>>(options: I)
         -> TokenStream
 {
-    let expr: Vec<_> = options.into_iter().collect();
-    if expr.is_empty() {
+    let options: Vec<_> = options.into_iter().collect();
+    if options.is_empty() {
         quote!{
-            #OPT
+            &#OPT
         }
     } else {
-        let options_trait = OPTIONS_TRAIT;
-        let inserts = expr.iter()
-            .map(|(ty, expr, _)| quote!{
-                #options_trait::insert(&mut temp, ::core::convert::Into::<#ty>::into(#expr));
-            });
-
-        // generate n choose 2 guard expressions, aka n(n-1)/2 or O(n^2)
-        let guards = expr.iter()
-            .enumerate()
-            .flat_map(|(idx, (ty_a, _, span_a))|
-                expr[idx+1..].iter()
-                    .map(move |(ty_b, _, span_b)| {
-                        require_types_not_equal(ty_a, ty_b, span_a.join(*span_b).unwrap_or(*span_b))
-                    })
-            );
+        let modifications = gen_option_modifications(&TEMP,&options);
         quote!{
             &{
-                let mut temp = #OPT.clone();
+                let mut #TEMP = #OPT.clone();
 
-                #(#guards)*
-                #(#inserts)*
+                #modifications
                 
-                temp
+                #TEMP
             }
         }
     }
@@ -627,8 +609,27 @@ fn get_new_options(idents: &[Ident], field_attrs: &[FieldLevelAttrs]) -> Vec<Tok
         .collect()
 }
 
-fn get_top_level_binread_options(tla: &TopLevelAttrs) -> TokenStream {
-    get_modified_options(tla.options.iter().cloned())
+fn get_top_level_binread_options(tla: &TopLevelAttrs, requires_mut: bool) -> TokenStream {
+
+    if requires_mut {
+        let modifications = gen_option_modifications(&OPT, &tla.options);
+        quote! {
+            let mut #OPT = #OPT.clone();
+            #modifications
+        }
+    } else if tla.options.is_empty() {
+        quote! {}
+    } else {
+        let modifications = gen_option_modifications(&TEMP, &tla.options);
+        quote! {
+            let #OPT = {
+                let mut #TEMP = #OPT.clone();
+                #modifications
+                #TEMP
+            };
+        }
+    }
+    //get_modified_options(tla.options.iter().cloned())
 }
 
 fn get_magic_pre_assertion(tla: &TopLevelAttrs) -> TokenStream {
@@ -637,7 +638,7 @@ fn get_magic_pre_assertion(tla: &TopLevelAttrs) -> TokenStream {
         .as_ref()
         .map(|magic|{
             quote!{
-                #ASSERT_MAGIC(#READER, #magic, #OPT)#handle_error?;
+                #ASSERT_MAGIC(#READER, #magic, &#OPT)#handle_error?;
             }
         });
     let pre_asserts = get_assertions(&tla.pre_assert);
@@ -728,7 +729,7 @@ fn write_start_struct(struct_name: &str) -> TokenStream {
 fn write_end_struct() -> TokenStream {
     if cfg!(feature = "debug_template") {
         quote!{
-            #WRITE_END_STRUCT (#OPT.variable_name);
+            #WRITE_END_STRUCT (&#OPT.variable_name);
         }
     } else {
         quote!{}

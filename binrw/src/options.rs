@@ -73,6 +73,13 @@ impl<V: 'static, R: OptionsCollection> OptionsCollection for OptionsNode<V, R> {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct FileOffset(pub u64);
 
+// TODO: u32, u16, u8?
+impl From<u64> for FileOffset {
+    fn from(val: u64) -> Self {
+        FileOffset(val)
+    }
+}
+
 /// Runtime-configured options for reading the type using [`BinRead`](BinRead)
 type BasicReadOptions<Rest> = OptionsNode<Endian, OptionsNode<FileOffset, Rest>>;
 
