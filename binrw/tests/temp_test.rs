@@ -1,4 +1,4 @@
-use binrw::{BinReaderExt, derive_binread, io::Cursor};
+use binrw::{derive_binread, io::Cursor, BinReaderExt};
 
 #[derive_binread]
 #[derive(Default, Debug, PartialEq)]
@@ -16,5 +16,10 @@ fn test_temps() {
 
     let y: Test = x.read_be().unwrap();
 
-    assert_eq!(y, Test { y: Vec::from(&b"ABCDE"[..]) });
+    assert_eq!(
+        y,
+        Test {
+            y: Vec::from(&b"ABCDE"[..])
+        }
+    );
 }

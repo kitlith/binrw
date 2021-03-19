@@ -1,11 +1,17 @@
-use crate::{BinResult, ReadOptions, io::{Read, Seek}};
-use crate::alloc::{vec::Vec, vec};
+use crate::alloc::{vec, vec::Vec};
+use crate::{
+    io::{Read, Seek},
+    BinResult,
+};
 
 mod file_ptr;
 pub use file_ptr::*;
 
 mod punctuated;
 pub use punctuated::*;
+
+mod counted;
+pub use counted::*;
 
 /// A helper for more efficiently mass-reading bytes
 ///
@@ -23,7 +29,11 @@ pub use punctuated::*;
 /// # let x: BunchaBytes = x.read_be().unwrap();
 /// # assert_eq!(x.data, &[0, 1, 2, 3, 4]);
 /// ```
-pub fn read_bytes<R: Read + Seek>(reader: &mut R, _options: &ReadOptions, (count,): (usize,)) -> BinResult<Vec<u8>> {
+pub fn read_bytes<R: Read + Seek, Opts>(
+    reader: &mut R,
+    _options: &Opts,
+    (count,): (usize,),
+) -> BinResult<Vec<u8>> {
     let mut buf = vec![0; count];
     reader.read_exact(&mut buf)?;
 

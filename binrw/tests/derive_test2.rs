@@ -1,9 +1,4 @@
-use binrw::{
-    prelude::*,
-    FilePtr,
-    io::*,
-    NullString
-};
+use binrw::{io::*, prelude::*, FilePtr, NullString};
 
 const TEST_CONTENTS: &[u8] = include_bytes!("./test_file2.bin");
 

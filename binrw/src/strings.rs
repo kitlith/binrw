@@ -1,13 +1,12 @@
 use super::*;
-use crate::alloc::{vec::Vec, vec, string::ToString};
+use crate::alloc::{string::ToString, vec, vec::Vec};
 
-use core::num::{NonZeroU8, NonZeroU16};
+use core::num::{NonZeroU16, NonZeroU8};
 
-impl BinRead for Vec<NonZeroU8> {
+impl<Opts: TypeMapGet> BinRead<Opts> for Vec<NonZeroU8> {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, _: &ReadOptions, _: Self::Args) -> BinResult<Self>
-    {
+    fn read_options<R: Read + Seek>(reader: &mut R, _: &Opts, _: Self::Args) -> BinResult<Self> {
         reader
             .bytes()
             .take_while(|x| if let Ok(0) = x { false } else { true })
@@ -17,16 +16,16 @@ impl BinRead for Vec<NonZeroU8> {
 }
 
 /// A null terminated UTF-8 string designed to make reading any null-terminated data easier.
-/// 
+///
 /// **Note:** Does not include the null.
 #[derive(Clone, PartialEq, Default)]
 pub struct NullString(pub Vec<u8>);
 
 /// A null terminated UTF-16 string designed to make reading any 16 bit wide null-terminated data easier.
-/// 
+///
 /// **Note:** Does not include the null.
-/// 
-/// **Note:** This is endian dependent on a per-character basis. Will read `u16`s until a `0u16` is found. 
+///
+/// **Note:** This is endian dependent on a per-character basis. Will read `u16`s until a `0u16` is found.
 #[derive(Clone, PartialEq, Default)]
 pub struct NullWideString(pub Vec<u16>);
 
@@ -76,34 +75,36 @@ impl Into<Vec<u8>> for NullString {
     }
 }
 
-impl BinRead for Vec<NonZeroU16> {
+impl<Opts: Contains<Endian>> BinRead<Opts> for Vec<NonZeroU16> {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: Self::Args)
-        -> BinResult<Self>
-    {
+    fn read_options<R: Read + Seek>(
+        reader: &mut R,
+        options: &Opts,
+        _: Self::Args,
+    ) -> BinResult<Self> {
         let mut values = vec![];
 
         loop {
             let val = <u16>::read_options(reader, options, ())?;
             if val == 0 {
-                return Ok(values)
+                return Ok(values);
             }
             values.push(unsafe { NonZeroU16::new_unchecked(val) });
         }
     }
 }
 
-impl BinRead for NullWideString {
+impl<Opts: Contains<Endian>> BinRead<Opts> for NullWideString {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args)
-        -> BinResult<Self>
-    {
+    fn read_options<R: Read + Seek>(
+        reader: &mut R,
+        options: &Opts,
+        args: Self::Args,
+    ) -> BinResult<Self> {
         #[cfg(feature = "debug_template")]
-        let mut options = options.clone();
-
-        #[cfg(feature = "debug_template")] {
+        let options = &{
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
 
             if !options.dont_output_to_template() {
@@ -111,45 +112,50 @@ impl BinRead for NullWideString {
                     options.endian(),
                     pos,
                     "wstring",
-                    &options.variable_name()
+                    &options
+                        .variable_name()
                         .map(ToString::to_string)
-                        .unwrap_or_else(|| binary_template::get_next_var_name())
+                        .unwrap_or_else(|| binary_template::get_next_var_name()),
                 );
-            
             }
-            options.insert(options::DontOutputTemplate(true));
-        }
-        <Vec<NonZeroU16>>::read_options(reader, &options, args)
-            .map(|chars| chars.into())
+            typemap_core::Ty::new(options::DontOutputTemplate(true), options)
+        };
+
+        <Vec<NonZeroU16>>::read_options(reader, options, args).map(|chars| chars.into())
     }
 }
 
-impl BinRead for NullString {
+impl<Opts: Contains<Endian>> BinRead<Opts> for NullString {
     type Args = ();
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, args: Self::Args)
-        -> BinResult<Self>
-    {
-        #[cfg(feature = "debug_template")] {
+    fn read_options<R: Read + Seek>(
+        reader: &mut R,
+        options: &Opts,
+        args: Self::Args,
+    ) -> BinResult<Self> {
+        #[cfg(feature = "debug_template")]
+        {
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
 
+            // TODO: only requires endian constraint for this
             if !options.dont_output_to_template() {
                 binary_template::write_named(
                     options.endian(),
                     pos,
                     "string",
-                    &options.variable_name()
-                            .map(ToString::to_string)
-                            .unwrap_or_else(|| binary_template::get_next_var_name())
+                    &options
+                        .variable_name()
+                        .map(ToString::to_string)
+                        .unwrap_or_else(|| binary_template::get_next_var_name()),
                 );
             }
         }
-        <Vec<NonZeroU8>>::read_options(reader, options, args)
-            .map(|chars| chars.into())
+        <Vec<NonZeroU8>>::read_options(reader, options, args).map(|chars| chars.into())
     }
 }
 
 use core::fmt;
+use typemap_core::{Contains, TypeMapGet};
 
 impl fmt::Debug for NullString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -369,9 +369,9 @@
 //! binread provides the `parse_with` attribute to allow specifying custom parser functions.
 //!
 //! ```rust
-//! # use binrw::{prelude::*, io::*, ReadOptions};
+//! # use binrw::{prelude::*, io::*};
 //! # use std::collections::HashMap;
-//! fn custom_parser<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, _: ())
+//! fn custom_parser<R: Read + Seek, Opts>(reader: &mut R, _: &Opts, _: ())
 //!     -> BinResult<HashMap<u16, u16>>
 //! {
 //!     let mut map = HashMap::new();

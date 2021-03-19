@@ -1,7 +1,11 @@
 #![allow(dead_code)]
-use binrw::{BinRead, BinResult, io::{Cursor, Read, Seek, SeekFrom}, FilePtr, NullString, ReadOptions};
+use binrw::{
+    io::{Cursor, Read, Seek, SeekFrom},
+    BinRead, BinResult, Endian, FilePtr, NullString,
+};
 
 use binrw::BinReaderExt;
+use typemap_core::Contains;
 
 #[derive(Debug)]
 struct BadDifferenceError(u16);
@@ -19,18 +23,20 @@ struct TestFile {
     start_as_none: Option<NotBinWrite>,
 
     #[br(calc = 1 + 2)]
-    calc_test: u32
+    calc_test: u32,
 }
 
 #[derive(Debug)]
 struct NotBinWrite {}
 
-fn read_offsets<R: Read + Seek>(reader: &mut R, ro: &ReadOptions, _: ())
-    -> BinResult<(u16, u16)>
-{
+fn read_offsets<R: Read + Seek, Opts: Contains<Endian>>(
+    reader: &mut R,
+    ro: &Opts,
+    _: (),
+) -> BinResult<(u16, u16)> {
     Ok((
         u16::read_options(reader, ro, ())?,
-        u16::read_options(reader, ro, ())?
+        u16::read_options(reader, ro, ())?,
     ))
 }
 
@@ -68,17 +74,11 @@ fn test_read() {
 
 #[derive(BinRead, Debug)]
 #[br(big, magic = b"TEST")]
-struct TestTupleStruct (
+struct TestTupleStruct(
     u32,
-
-    #[br(args((self_0 + 1) as usize, (0x69,)))]
-    Vec<FilePtr<u32, TestEntry>>,
-
-    #[br(default)]
-    Option<NotBinWrite>,
-
-    #[br(calc = 1 + 2)]
-    u32
+    #[br(args((self_0 + 1) as usize, (0x69,)))] Vec<FilePtr<u32, TestEntry>>,
+    #[br(default)] Option<NotBinWrite>,
+    #[br(calc = 1 + 2)] u32,
 );
 
 #[test]
@@ -90,11 +90,10 @@ fn test_tuple() {
 #[derive(BinRead, Debug)]
 #[br(big)]
 enum TestEnum {
-    #[br(magic(0u8))] Nop,
-    #[br(magic(2u8))] Begin {
-        arg_count: u16,
-        var_count: u16,
-    },
+    #[br(magic(0u8))]
+    Nop,
+    #[br(magic(2u8))]
+    Begin { arg_count: u16, var_count: u16 },
 }
 
 #[test]

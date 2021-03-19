@@ -113,63 +113,45 @@
 //! In order to parse generically, we have to (in some way) bound `Args`. The easiest way to do
 //! this is to bound `<T as BinRead>::Args` to `()` (no arguments), however it is also possible to
 //! either accept a specific set of arguments or be generic over the given arguments.
-#![cfg_attr(not(feature="std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(not(feature = "std"))]
-use alloc::{
-    boxed::Box,
-    string::String,
-    vec::Vec,
-};
+use alloc::{boxed::Box, string::String, vec::Vec};
 #[cfg(feature = "std")]
 use std as alloc;
 
-#[doc(inline)]
-pub use {
-    binread::{
-        BinRead,
-        BinReaderExt
-    },
-    endian::Endian,
-    error::Error,
-    helpers::{
-        FilePtr,
-        FilePtr128,
-        FilePtr16,
-        FilePtr32,
-        FilePtr64,
-        FilePtr8,
-    },
-    pos_value::PosValue,
-    strings::{
-        NullString,
-        NullWideString
-    },
-    options::{
-        ReadOptions,
-        ReadOptionsExt,
-        OptionsCollection
-    }
-};
-/// Derive macro for BinRead. [Usage here](BinRead).
-pub use binrw_derive::BinRead;
 /// Equivelant to `derive(BinRead)` but allows for temporary variables.
 pub use binrw_derive::derive_binread;
+/// Derive macro for BinRead. [Usage here](BinRead).
+pub use binrw_derive::BinRead;
 use io::{Read, Seek, SeekFrom};
+#[doc(inline)]
+pub use {
+    binread::{BinRead, BinReaderExt},
+    endian::Endian,
+    error::Error,
+    helpers::{FilePtr, FilePtr128, FilePtr16, FilePtr32, FilePtr64, FilePtr8},
+    options::ReadOptionsExt,
+    pos_value::PosValue,
+    strings::{NullString, NullWideString},
+};
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-mod binread;
-pub mod io;
-pub mod error;
-pub mod endian;
-pub mod helpers;
 pub mod attribute;
-#[doc(hidden)] pub mod strings;
-#[doc(hidden)] pub mod pos_value;
+mod binread;
+pub mod endian;
+pub mod error;
+pub mod helpers;
+pub mod io;
+#[doc(hidden)]
+pub mod pos_value;
+#[doc(hidden)]
+pub mod strings;
 // collection of types and traits used by binread_derive for a particular kind of compiler error
-#[doc(hidden)] pub mod proc_macro_helper;
+#[doc(hidden)]
+pub mod proc_macro_helper;
 
 #[cfg(feature = "std")]
 #[cfg(feature = "debug_template")]

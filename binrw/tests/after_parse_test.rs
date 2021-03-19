@@ -9,12 +9,8 @@ fn BinReaderExt_calls_after_parse() {
     assert_eq!(*test, 0xFF);
 }
 
-
 #[derive(BinRead)]
-struct Try<BR: BinRead<Args=()>>(
-    #[br(try)]
-    Option<BR>
-);
+struct Try<BR: BinRead<Args = ()>>(#[br(try)] Option<BR>);
 
 #[test]
 fn try_calls_after_parse() {

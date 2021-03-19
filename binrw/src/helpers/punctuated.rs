@@ -1,10 +1,10 @@
 //! A module for [`Punctuated<T, P>`](Punctuated), a series of items to parse of type T separated
 //! by punction of type `P`.
 
-use core::fmt;
-use crate::io::{Read, Seek};
-use crate::{BinRead, ReadOptions, BinResult};
 use crate::alloc::vec::Vec;
+use crate::io::{Read, Seek};
+use crate::{BinRead, BinResult};
+use core::fmt;
 
 /// A type for seperated data. Since parsing for this type is ambiguous, you must manually specify
 /// a parser using the `parse_with` attribute.
@@ -27,12 +27,12 @@ use crate::alloc::vec::Vec;
 /// # assert_eq!(*y.x, vec![3, 2, 1]);
 /// # assert_eq!(y.x.seperators, vec![0, 1]);
 /// ```
-pub struct Punctuated<T: BinRead, P: BinRead> {
+pub struct Punctuated<T, P> {
     data: Vec<T>,
     pub seperators: Vec<P>,
 }
 
-impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<T, P> {
+impl<T, P> Punctuated<T, P> {
     /// A parser for values seperated by another value, with no trailing punctuation.
     ///
     /// Requires a specified count.
@@ -55,12 +55,21 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     /// # assert_eq!(*y.x, vec![3, 2, 1]);
     /// # assert_eq!(y.x.seperators, vec![0, 1]);
     /// ```
-    pub fn separated<R: Read + Seek>(reader: &mut R, options: &ReadOptions, (count, args): (usize, C)) -> BinResult<Self> {
+    pub fn separated<R: Read + Seek, Opts>(
+        reader: &mut R,
+        options: &Opts,
+        (count, args): (usize, T::Args),
+    ) -> BinResult<Self>
+    where
+        T: BinRead<Opts>,
+        T::Args: Copy + 'static,
+        P: BinRead<Opts, Args = ()>,
+    {
         let mut data = Vec::with_capacity(count);
         let mut seperators = Vec::with_capacity(count.max(1) - 1);
 
         for i in 0..count {
-            data.push(T::read_options(reader, &options, args)?);
+            data.push(T::read_options(reader, options, args)?);
             if i + 1 != count {
                 seperators.push(P::read_options(reader, options, ())?);
             }
@@ -72,12 +81,21 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     /// A parser for values seperated by another value, with trailing punctuation.
     ///
     /// Requires a specified count.
-    pub fn separated_trailing<R: Read + Seek>(reader: &mut R, options: &ReadOptions, (count, args): (usize, C)) -> BinResult<Self> {
+    pub fn separated_trailing<R: Read + Seek, Opts>(
+        reader: &mut R,
+        options: &Opts,
+        (count, args): (usize, T::Args),
+    ) -> BinResult<Self>
+    where
+        T: BinRead<Opts>,
+        T::Args: Copy + 'static,
+        P: BinRead<Opts, Args = ()>,
+    {
         let mut data = Vec::with_capacity(count);
         let mut seperators = Vec::with_capacity(count);
 
         for _ in 0..count {
-            data.push(T::read_options(reader, &options, args)?);
+            data.push(T::read_options(reader, options, args)?);
             seperators.push(P::read_options(reader, options, ())?);
         }
 
@@ -92,13 +110,13 @@ impl<C: Copy + 'static, T: BinRead<Args = C>, P: BinRead<Args = ()>> Punctuated<
     }
 }
 
-impl<T: BinRead + fmt::Debug, P: BinRead> fmt::Debug for Punctuated<T, P> {
+impl<T: fmt::Debug, P> fmt::Debug for Punctuated<T, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.data.fmt(f)
     }
 }
 
-impl<T: BinRead, P: BinRead> core::ops::Deref for Punctuated<T, P> {
+impl<T, P> core::ops::Deref for Punctuated<T, P> {
     type Target = Vec<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -106,7 +124,7 @@ impl<T: BinRead, P: BinRead> core::ops::Deref for Punctuated<T, P> {
     }
 }
 
-impl<T: BinRead, P: BinRead> core::ops::DerefMut for Punctuated<T, P> {
+impl<T, P> core::ops::DerefMut for Punctuated<T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
     }

@@ -30,6 +30,7 @@
 use crate::*;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
+use typemap_core::{Contains};
 
 /// A wrapper type for representing a layer of indirection within a file.
 ///
@@ -60,9 +61,9 @@ use core::ops::{Deref, DerefMut};
 /// ```
 ///
 /// Use `offset` to change what the pointer is relative to (default: beginning of reader).
-pub struct FilePtr<Ptr: IntoSeekFrom, BR: BinRead> {
+pub struct FilePtr<Ptr: IntoSeekFrom, BR> {
     pub ptr: Ptr,
-    pub value: Option<BR>
+    pub value: Option<BR>,
 }
 
 /// Type alias for 8-bit pointers
@@ -76,14 +77,21 @@ pub type FilePtr64<T> = FilePtr<u64, T>;
 /// Type alias for 128-bit pointers
 pub type FilePtr128<T> = FilePtr<u128, T>;
 
-impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Ptr, BR> {
+impl<
+        Opts: Contains<options::FileOffset>,
+        Ptr: BinRead<Opts, Args = ()> + IntoSeekFrom,
+        BR: BinRead<Opts>,
+    > BinRead<Opts> for FilePtr<Ptr, BR>
+{
     type Args = BR::Args;
 
-    fn read_options<R: Read + Seek>(reader: &mut R, options: &ReadOptions, _: Self::Args) -> BinResult<Self> {
+    fn read_options<R: Read + Seek>(
+        reader: &mut R,
+        options: &Opts,
+        _: Self::Args,
+    ) -> BinResult<Self> {
         #[cfg(feature = "debug_template")]
         let options = &{
-            let mut options = options.clone();
-
             let pos = reader.seek(SeekFrom::Current(0)).unwrap();
             let type_name = &core::any::type_name::<Ptr>();
             if let Some(name) = options.variable_name() {
@@ -91,28 +99,24 @@ impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Pt
                     options.endian(),
                     pos,
                     type_name,
-                    &format!("ptr_to_{}", name)
+                    &format!("ptr_to_{}", name),
                 );
             } else {
-                binary_template::write(
-                    options.endian(),
-                    pos,
-                    type_name,
-                );
+                binary_template::write(options.endian(), pos, type_name);
             }
-            options.insert(options::DontOutputTemplate(true));
 
-            options
+            typemap_core::Ty::new(options::DontOutputTemplate(true), options)
         };
 
-        Ok(FilePtr{
+        Ok(FilePtr {
             ptr: Ptr::read_options(reader, options, ())?,
-            value: None
+            value: None,
         })
     }
 
-    fn after_parse<R>(&mut self, reader: &mut R, ro: &ReadOptions, args: BR::Args)-> BinResult<()>
-        where R: Read + Seek,
+    fn after_parse<R>(&mut self, reader: &mut R, ro: &Opts, args: BR::Args) -> BinResult<()>
+    where
+        R: Read + Seek,
     {
         let relative_to = ro.offset();
         let before = reader.seek(SeekFrom::Current(0))?;
@@ -130,14 +134,17 @@ impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> BinRead for FilePtr<Pt
     }
 }
 
-impl<Ptr: BinRead<Args = ()> + IntoSeekFrom, BR: BinRead> FilePtr<Ptr, BR> {
+impl<Ptr: IntoSeekFrom, BR> FilePtr<Ptr, BR> {
     /// Custom parser designed for use with the `parse_with` attribute ([example](crate::attribute#custom-parsers))
     /// that reads a [`FilePtr`](FilePtr) then immediately dereferences it into an owned value
-    pub fn parse<R: Read + Seek>(
+    pub fn parse<Opts: Contains<options::FileOffset>, R: Read + Seek>(
         reader: &mut R,
-        options: &ReadOptions,
-        args: BR::Args
+        options: &Opts,
+        args: BR::Args,
     ) -> BinResult<BR>
+    where
+        Ptr: BinRead<Opts, Args = ()>,
+        BR: BinRead<Opts>,
     {
         let mut ptr: Self = Self::read_options(reader, options, args)?;
         let saved_pos = reader.seek(SeekFrom::Current(0))?;
@@ -177,31 +184,36 @@ impl_into_seek_from!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128);
 
 /// ## Panics
 /// Will panic if the FilePtr has not been read yet using [`BinRead::after_parse`](BinRead::after_parse)
-impl<Ptr: IntoSeekFrom, BR: BinRead> Deref for FilePtr<Ptr, BR> {
+impl<Ptr: IntoSeekFrom, BR> Deref for FilePtr<Ptr, BR> {
     type Target = BR;
 
     fn deref(&self) -> &Self::Target {
         match self.value.as_ref() {
             Some(x) => x,
-            None => panic!("Deref'd FilePtr before reading (make sure to use FilePtr::after_parse first)")
+            None => panic!(
+                "Deref'd FilePtr before reading (make sure to use FilePtr::after_parse first)"
+            ),
         }
     }
 }
 
 /// ## Panics
 /// Will panic if the FilePtr has not been read yet using [`BinRead::after_parse`](BinRead::after_parse)
-impl<Ptr: IntoSeekFrom, BR: BinRead> DerefMut for FilePtr<Ptr, BR> {
+impl<Ptr: IntoSeekFrom, BR> DerefMut for FilePtr<Ptr, BR> {
     fn deref_mut(&mut self) -> &mut BR {
         match self.value.as_mut() {
             Some(x) => x,
-            None => panic!("Deref'd FilePtr before reading (make sure to use FilePtr::after_parse first)")
+            None => panic!(
+                "Deref'd FilePtr before reading (make sure to use FilePtr::after_parse first)"
+            ),
         }
     }
 }
 
 impl<Ptr, BR> fmt::Debug for FilePtr<Ptr, BR>
-    where Ptr: BinRead<Args = ()> + IntoSeekFrom,
-          BR: BinRead + fmt::Debug,
+where
+    Ptr: IntoSeekFrom,
+    BR: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(ref value) = self.value {
@@ -213,10 +225,10 @@ impl<Ptr, BR> fmt::Debug for FilePtr<Ptr, BR>
 }
 
 impl<Ptr, BR> PartialEq<FilePtr<Ptr, BR>> for FilePtr<Ptr, BR>
-    where Ptr: BinRead<Args = ()> + IntoSeekFrom,
-          BR: BinRead + PartialEq,
+where
+    Ptr: IntoSeekFrom,
+    BR: PartialEq,
 {
-
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }

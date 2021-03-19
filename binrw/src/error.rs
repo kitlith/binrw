@@ -10,28 +10,20 @@ pub enum Error {
         // Position in number of bytes from the start of the reader
         pos: u64,
         // The value found. Use [`Any::downcast_ref`](core::any::Any::downcast_ref) to access
-        found: Box<dyn Any>
+        found: Box<dyn Any>,
     },
     /// The condition of an assertion without a custom type failed
-    AssertFail {
-        pos: u64,
-        message: String
-    },
+    AssertFail { pos: u64, message: String },
     /// An error that occured while reading from, or seeking within, the reader
     Io(io::Error),
     /// A custom error, most often given from the second value passed into an [`assert`](attribute#Assert)
-    Custom {
-        pos: u64,
-        err: Box<dyn Any>
-    },
+    Custom { pos: u64, err: Box<dyn Any> },
     /// No variant in the enum was successful in parsing the data
-    NoVariantMatch {
-        pos: u64
-    },
+    NoVariantMatch { pos: u64 },
     EnumErrors {
         pos: u64,
         variant_errors: Vec<(/*variant name*/ &'static str, Error)>,
-    }
+    },
 }
 
 impl From<io::Error> for Error {
@@ -49,10 +41,12 @@ impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BadMagic { pos, .. } => write!(f, "BadMagic {{ pos: 0x{:X} }}", pos),
-            Self::AssertFail { pos, message } => write!(f, "AssertFail at 0x{:X}: \"{}\"", pos, message),
+            Self::AssertFail { pos, message } => {
+                write!(f, "AssertFail at 0x{:X}: \"{}\"", pos, message)
+            }
             Self::Io(err) => write!(f, "Io({:?})", err),
             Self::Custom { pos, err } => write!(f, "Custom {{ pos: 0x{:X}, err: {:?} }}", pos, err),
-            _ => write!(f, "EnumErrors")
+            _ => write!(f, "EnumErrors"),
         }
     }
 }
@@ -61,32 +55,33 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::BadMagic { pos, .. } => write!(f, "BadMagic {{ pos: 0x{:X} }}", pos),
-            Self::AssertFail { pos, message } => write!(f, "AssertFail at 0x{:X}: \"{}\"", pos, message),
+            Self::AssertFail { pos, message } => {
+                write!(f, "AssertFail at 0x{:X}: \"{}\"", pos, message)
+            }
             Self::Io(err) => write!(f, "Io({:?})", err),
             Self::Custom { pos, err } => write!(f, "Custom {{ pos: 0x{:X}, err: {:?} }}", pos, err),
-            _ => write!(f, "EnumErrors")
+            _ => write!(f, "EnumErrors"),
         }
     }
 }
 
 /// Read a value then check if it is the expected value
-pub fn magic<R, B>(reader: &mut R, expected: B, options: &ReadOptions) -> BinResult<()>
-    where B: BinRead<Args=()> + PartialEq + 'static,
-          R: io::Read + io::Seek
+pub fn magic<Opts, R, B>(reader: &mut R, expected: B, options: &Opts) -> BinResult<()>
+where
+    B: BinRead<Opts, Args = ()> + PartialEq + 'static,
+    R: io::Read + io::Seek,
 {
     let pos = reader.seek(SeekFrom::Current(0))?;
     #[cfg(feature = "debug_template")]
-    let mut options = options.clone();
-    #[cfg(feature = "debug_template")] {
-        options.insert(options::VariableName(Some("magic")));
-    }
+    let options = typemap_core::Ty::new(options::VariableName(Some("magic")), options);
+
     let val = B::read_options(reader, &options, ())?;
     if val == expected {
         Ok(())
     } else {
         Err(Error::BadMagic {
             pos: pos as u64,
-            found: Box::new(val) as _
+            found: Box::new(val) as _,
         })
     }
 }
@@ -118,25 +113,28 @@ pub fn magic<R, B>(reader: &mut R, expected: B, options: &ReadOptions) -> BinRes
 
 /// Assert a condition is true and if not optionally apply a function to generate the error
 pub fn assert<R, E, A>(reader: &mut R, test: bool, message: &str, error: Option<E>) -> BinResult<()>
-    where R: io::Read + io::Seek,
-          A: core::fmt::Debug + 'static,
-          E: Fn() -> A,
+where
+    R: io::Read + io::Seek,
+    A: core::fmt::Debug + 'static,
+    E: Fn() -> A,
 {
     let pos = reader.seek(SeekFrom::Current(0))? as u64;
     if test {
         Ok(())
     } else {
-        error.map(|err|{
-            Err(Error::Custom {
-                pos,
-                err: Box::new(err())
+        error
+            .map(|err| {
+                Err(Error::Custom {
+                    pos,
+                    err: Box::new(err()),
+                })
             })
-        }).unwrap_or_else(||{
-            Err(Error::AssertFail {
-                pos,
-                message: message.into()
+            .unwrap_or_else(|| {
+                Err(Error::AssertFail {
+                    pos,
+                    message: message.into(),
+                })
             })
-        })
     }
 }
 
@@ -144,7 +142,7 @@ pub fn assert<R, E, A>(reader: &mut R, test: bool, message: &str, error: Option<
 /// A no-op replacement for [`BinRead::read_options`](BinRead::read_options) that returns the unit type
 ///
 /// **Intended for internal use only**
-pub fn nop3<T1, R: Read + Seek>(_: &mut R, _: &ReadOptions, _: T1) -> BinResult<()> {
+pub fn nop3<Opts, T1, R: Read + Seek>(_: &mut R, _: &Opts, _: T1) -> BinResult<()> {
     Ok(())
 }
 
@@ -153,7 +151,11 @@ pub fn nop3<T1, R: Read + Seek>(_: &mut R, _: &ReadOptions, _: T1) -> BinResult<
 /// default value for the given type. Internally used for the `default` attribute.
 ///
 /// **Intended for internal use only**
-pub fn nop3_default<T1, R: Read + Seek, D: Default>(_: &mut R, _: &ReadOptions, _: T1) -> BinResult<D> {
+pub fn nop3_default<Opts, T1, R: Read + Seek, D: Default>(
+    _: &mut R,
+    _: &Opts,
+    _: T1,
+) -> BinResult<D> {
     Ok(D::default())
 }
 
@@ -161,7 +163,7 @@ pub fn nop3_default<T1, R: Read + Seek, D: Default>(_: &mut R, _: &ReadOptions, 
 /// A no-op replacement for [`BinRead::after_parse`](BinRead::after_parse)
 ///
 /// **Intended for internal use only**
-pub fn nop5<T1, T2, R: Read + Seek>(_: &mut T1, _: &mut R, _: &ReadOptions, _: T2) -> BinResult<()> {
+pub fn nop5<Opts, T1, T2, R: Read + Seek>(_: &mut T1, _: &mut R, _: &Opts, _: T2) -> BinResult<()> {
     Ok(())
 }
 
@@ -170,15 +172,16 @@ pub fn nop5<T1, T2, R: Read + Seek>(_: &mut T1, _: &mut R, _: &ReadOptions, _: T
 /// a value is present.
 ///
 /// **Intended for internal use only**
-pub fn try_after_parse<Reader, ValueType, ArgType>(
+pub fn try_after_parse<Opts, Reader, ValueType, ArgType>(
     item: &mut Option<ValueType>,
     reader: &mut Reader,
-    ro: &ReadOptions,
+    ro: &Opts,
     args: ArgType,
 ) -> BinResult<()>
-    where Reader: Read + Seek,
-          ValueType: BinRead<Args = ArgType>,
-          ArgType: Copy + 'static,
+where
+    Reader: Read + Seek,
+    ValueType: BinRead<Opts, Args = ArgType>,
+    ArgType: Copy + 'static,
 {
     if let Some(value) = item.as_mut() {
         value.after_parse(reader, ro, args)?;
@@ -195,20 +198,16 @@ pub fn try_after_parse<Reader, ValueType, ArgType>(
 /// first parsed. In theory should be optimized out in case of no-op.
 ///
 /// **Intended for internal use only**
-pub fn identity_after_parse<PostprocessFn, Reader, ValueType, ArgType>(
+pub fn identity_after_parse<Opts, PostprocessFn, Reader, ValueType, ArgType>(
     after_parse_fn: PostprocessFn,
     mut item: ValueType,
     reader: &mut Reader,
-    ro: &ReadOptions,
+    ro: &Opts,
     args: ArgType,
 ) -> BinResult<ValueType>
-    where Reader: Read + Seek,
-          PostprocessFn: Fn(
-              &mut ValueType,
-              &mut Reader,
-              &ReadOptions,
-              ArgType,
-          ) -> BinResult<()>,
+where
+    Reader: Read + Seek,
+    PostprocessFn: Fn(&mut ValueType, &mut Reader, &Opts, ArgType) -> BinResult<()>,
 {
     after_parse_fn(&mut item, reader, ro, args)?;
     Ok(item)
@@ -219,14 +218,15 @@ pub fn try_conversion<T>(result: BinResult<T>) -> BinResult<Option<T>> {
     Ok(result.ok())
 }
 
-pub fn read_options_then_after_parse<Args, T, R>(
+pub fn read_options_then_after_parse<Opts, Args, T, R>(
     reader: &mut R,
-    ro: &ReadOptions,
+    ro: &Opts,
     args: T::Args,
 ) -> BinResult<T>
-    where Args: Copy + 'static,
-          T: BinRead<Args = Args>,
-          R: Read + Seek,
+where
+    Args: Copy + 'static,
+    T: BinRead<Opts, Args = Args>,
+    R: Read + Seek,
 {
     let mut val = T::read_options(reader, ro, args.clone())?;
     val.after_parse(reader, ro, args)?;
@@ -237,7 +237,7 @@ impl Error {
     /// Gets a custom error of type T from the Error. Returns `None` if the error type is not
     /// custom or if the contained error is not of the desired type.
     pub fn custom_err<T: Any>(&self) -> Option<&T> {
-        if let Error::Custom { err, ..} = self {
+        if let Error::Custom { err, .. } = self {
             err.downcast_ref()
         } else {
             None
