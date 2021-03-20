@@ -1,4 +1,4 @@
-use binrw::{BinRead, BinResult, derive_binread, io::{Cursor, Read, Seek, SeekFrom}, FilePtr, NullString, ReadOptions};
+use binrw::{BinRead, BinResult, derive_binread, io::{Cursor, Read, Seek, SeekFrom}, RelFilePtr, AbsFilePtr, NullString, ReadOptions};
 
 #[test]
 fn all_the_things() {
@@ -12,7 +12,7 @@ fn all_the_things() {
         extra_entry_count: u32,
 
         #[br(count = extra_entry_count + 1, args(0x69))]
-        entries: Vec<FilePtr<u32, TestEntry>>,
+        entries: Vec<AbsFilePtr<u32, TestEntry>>,
 
         #[br(default)]
         start_as_none: Option<PlainObject>,
@@ -44,7 +44,7 @@ fn all_the_things() {
         offsets: (u16, u16),
 
         #[br(if(offsets.0 == 0x20))]
-        name: Option<FilePtr<u32, NullString>>,
+        name: Option<AbsFilePtr<u32, NullString>>,
 
         #[br(calc(extra_val))]
         extra_val: u8,
@@ -148,13 +148,13 @@ fn deref_now() {
         // deref_now on the first field tests that the reader position is correctly
         // restored before reading the second field
         #[br(deref_now)]
-        a: FilePtr<u32, NullString>,
+        a: AbsFilePtr<u32, NullString>,
         b: i32,
     }
 
     let result = Test::read(&mut Cursor::new(include_bytes!("data/deref_now.bin"))).unwrap();
     assert_eq!(result, Test {
-        a: FilePtr { ptr: 0x10, value: Some(NullString(b"Test string".to_vec())) },
+        a: AbsFilePtr { ptr: 0x10, value: Some(NullString(b"Test string".to_vec())) },
         b: -1,
     });
 }
@@ -284,7 +284,7 @@ fn offset_after() {
     #[derive(BinRead, Debug)]
     struct Test {
         #[br(offset_after = b.into())]
-        a: FilePtr<u8, u8>,
+        a: RelFilePtr<u8, u8>,
         b: u8,
     }
 
