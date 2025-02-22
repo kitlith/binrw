@@ -114,19 +114,11 @@ fn vec_u8() {
 
 #[test]
 fn count_with_correctness() {
-    // Defining this as a closure doesn't work, complains about specific lifetime versus any lifetime.
-    // let weird_u8_read = |reader, _, _| u8::read(reader).map(|v| v & 0x0F);
-    fn weird_u8_read<R>(reader: &mut R, _endian: binrw::Endian, _args: ()) -> binrw::BinResult<u8>
-    where
-        R: binrw::io::Read + binrw::io::Seek,
-    {
-        u8::read(reader).map(|v| v & 0x0F)
-    }
-
-    let read = binrw::helpers::count_with(1, weird_u8_read);
-    let val: Vec<u8> = read(&mut Cursor::new(&[0xF3u8]), binrw::Endian::Little, ()).unwrap();
-    assert_eq!(
-        val[0], 0x03,
-        "binrw::helpers::count_with ignored the passed read function!"
+    let read = binrw::helpers::count_with(2, binrw::helpers::read_u24);
+    let _: Vec<u32> = read(
+        &mut Cursor::new(&[0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF]),
+        binrw::Endian::Little,
+        (),
     )
+    .expect("more than 3 bytes per u24 should not be required");
 }
